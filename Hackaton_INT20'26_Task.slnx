@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="Application/Application.csproj" />
+  <Project Path="Domain/Domain.csproj" />
+  <Project Path="Hackaton_INT20'26_Task/Hackaton_INT20'26_Task.csproj" />
+  <Project Path="Infrastructure/Infrastructure.csproj" />
+</Solution>

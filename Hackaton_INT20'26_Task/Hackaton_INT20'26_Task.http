@@ -1,0 +1,6 @@
+@Hackaton_INT20_26_Task_HostAddress = http://localhost:5121
+
+GET {{Hackaton_INT20_26_Task_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

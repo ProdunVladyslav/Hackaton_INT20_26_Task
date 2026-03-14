@@ -1,0 +1,25 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      Microsoft.AspNetCore.Authentication.JwtBearer pulls in the full JWT stack:
+        · System.IdentityModel.Tokens.Jwt  — JwtSecurityToken, JwtSecurityTokenHandler
+        · Microsoft.IdentityModel.Tokens   — SymmetricSecurityKey, SigningCredentials
+      These are needed by LoginUseCase to BUILD (sign) the token.
+      The validation side (reading the cookie, verifying the signature) is handled
+      by the same package wired in Program.cs via AddJwtBearer().
+    -->
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.25" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Application\Application.csproj" />
+  </ItemGroup>
+
+</Project>
