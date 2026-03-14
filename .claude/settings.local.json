@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cmd.exe /c \"echo %PATH%\")",
+      "Bash(tr ';' '\\\\n')"
+    ]
+  }
+}

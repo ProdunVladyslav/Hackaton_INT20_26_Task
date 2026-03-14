@@ -86,13 +86,16 @@ export interface EdgeCondition {
   value: string
 }
 
-// ─── DAG Edge (React Flow edge) ──────────────────────────────────────────────
+// ─── DAG Edge (React Flow edge + condition label) ────────────────────────────
 
 export interface DagEdge {
   id: string
   source: string
   target: string
+  type?: string
   condition?: EdgeCondition
+  // data is the React Flow edge data object (contains label for ConditionEdge)
+  data?: { label?: string; condition?: EdgeCondition }
 }
 
 // ─── Survey / Funnel ─────────────────────────────────────────────────────────

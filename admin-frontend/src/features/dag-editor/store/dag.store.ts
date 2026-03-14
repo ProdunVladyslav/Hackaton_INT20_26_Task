@@ -50,7 +50,10 @@ export const useDagStore = create<DagState>((set, get) => ({
 
   onConnect: (connection) =>
     set((s) => ({
-      edges: addEdge({ ...connection, id: crypto.randomUUID() }, s.edges),
+      edges: addEdge(
+        { ...connection, id: crypto.randomUUID(), type: 'conditionEdge', data: {} },
+        s.edges
+      ),
       isDirty: true,
     })),
 
@@ -81,9 +84,13 @@ export const useDagStore = create<DagState>((set, get) => ({
 
   updateEdgeCondition: (id, condition) =>
     set((s) => ({
-      edges: s.edges.map((e) =>
-        e.id === id ? { ...e, data: { ...e.data, condition } } : e
-      ),
+      edges: s.edges.map((e) => {
+        if (e.id !== id) return e
+        const label = condition
+          ? `${condition.attribute} ${condition.operator} ${condition.value}`
+          : undefined
+        return { ...e, data: { ...e.data, condition, label } }
+      }),
       isDirty: true,
     })),
 

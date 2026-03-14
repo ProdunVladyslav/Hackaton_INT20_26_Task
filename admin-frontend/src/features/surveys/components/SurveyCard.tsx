@@ -162,7 +162,7 @@ export function SurveyCard({ survey, onEdit, onDelete, onCopyLink, index }: Surv
           size="sm"
           icon={<Trash2 size={14} />}
           onClick={() => onDelete(survey.id)}
-          style={{ color: 'var(--color-error)' }}
+          style={{ color: '#EF4444' }}
         >
           Delete
         </Button>

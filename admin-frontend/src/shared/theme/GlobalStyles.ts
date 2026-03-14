@@ -7,6 +7,11 @@ export const GlobalStyles = createGlobalStyle`
     padding: 0;
   }
 
+  html, body {
+    height: 100%;
+    overflow: hidden;
+  }
+
   html {
     font-size: 16px;
     -webkit-text-size-adjust: 100%;
@@ -23,11 +28,10 @@ export const GlobalStyles = createGlobalStyle`
                 color ${({ theme }) => theme.transitions.normal};
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    min-height: 100vh;
   }
 
   #root {
-    min-height: 100vh;
+    height: 100%;
     display: flex;
     flex-direction: column;
   }
@@ -73,18 +77,57 @@ export const GlobalStyles = createGlobalStyle`
     background: ${({ theme }) => theme.colors.textTertiary};
   }
 
-  /* React Flow overrides */
-  .react-flow__attribution {
-    display: none !important;
+  /* ─── React Flow overrides ─────────────────────────────────────────── */
+  .react-flow__attribution { display: none !important; }
+
+  /* Ensure React Flow's wrapper divs fill their containers */
+  .react-flow__renderer,
+  .react-flow__viewport {
+    width: 100%;
+    height: 100%;
   }
-  .react-flow__background {
-    background-color: ${({ theme }) => theme.colors.bg} !important;
+
+  .react-flow__handle {
+    width: 12px !important;
+    height: 12px !important;
+    border-radius: 50% !important;
+    cursor: crosshair !important;
+    opacity: 1 !important;
+    transition: transform 0.15s ease !important;
   }
-  .react-flow__edge-path {
-    stroke: ${({ theme }) => theme.colors.border} !important;
-    stroke-width: 2px !important;
+  .react-flow__handle:hover {
+    transform: scale(1.4) !important;
   }
-  .react-flow__edge.selected .react-flow__edge-path {
+  .react-flow__handle-connecting {
+    background: ${({ theme }) => theme.colors.accent} !important;
+  }
+  .react-flow__handle-valid {
+    background: ${({ theme }) => theme.colors.success} !important;
+  }
+
+  .react-flow__controls-button {
+    background: ${({ theme }) => theme.colors.bgSurface} !important;
+    border-bottom-color: ${({ theme }) => theme.colors.border} !important;
+    color: ${({ theme }) => theme.colors.textSecondary} !important;
+    fill: ${({ theme }) => theme.colors.textSecondary} !important;
+  }
+  .react-flow__controls-button:hover {
+    background: ${({ theme }) => theme.colors.bgElevated} !important;
+  }
+
+  .react-flow__node {
+    border-radius: 12px !important;
+  }
+  .react-flow__node.selected > * {
+    outline: none !important;
+  }
+
+  .react-flow__connection-line {
+    stroke: ${({ theme }) => theme.colors.accent} !important;
+    stroke-width: 2 !important;
+    stroke-dasharray: 5 3 !important;
+  }
+  .react-flow__connection-path {
     stroke: ${({ theme }) => theme.colors.accent} !important;
   }
 `
