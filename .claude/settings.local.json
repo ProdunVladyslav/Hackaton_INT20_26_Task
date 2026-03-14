@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(cmd.exe /c \"echo %PATH%\")",
-      "Bash(tr ';' '\\\\n')"
+      "Bash(tr ';' '\\\\n')",
+      "Read(//c/Users/Honor MagicBook PRO/source/repos/**)",
+      "Bash(dotnet build:*)"
     ]
   }
 }

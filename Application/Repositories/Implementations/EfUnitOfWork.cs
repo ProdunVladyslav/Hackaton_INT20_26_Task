@@ -11,5 +11,8 @@ namespace Application.Repositories.Implementations
     {
         public Task<int> SaveChangesAsync()
             => context.SaveChangesAsync();
+
+        public Task<int> SaveChangesAsync(CancellationToken ct)
+            => context.SaveChangesAsync(ct);
     }
 }

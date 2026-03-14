@@ -17,13 +17,11 @@ namespace Infrastructure.Contracts.Auth.Requests;
 ///   validator (triggered by [ApiController]) can see and enforce it.
 /// </summary>
 public sealed record LoginRequest(
-    /// <summary>The user's registered e-mail address.</summary>
-    [property: Required(ErrorMessage = "Email is required.")]
-    [property: EmailAddress(ErrorMessage = "Must be a valid e-mail address.")]
+    [Required(ErrorMessage = "Email is required.")]
+    [EmailAddress(ErrorMessage = "Must be a valid e-mail address.")]
     string Email,
 
-    /// <summary>The user's password (min 8 characters).</summary>
-    [property: Required(ErrorMessage = "Password is required.")]
-    [property: MinLength(8, ErrorMessage = "Password must be at least 8 characters.")]
+    [Required(ErrorMessage = "Password is required.")]
+    [MinLength(8, ErrorMessage = "Password must be at least 8 characters.")]
     string Password
 );

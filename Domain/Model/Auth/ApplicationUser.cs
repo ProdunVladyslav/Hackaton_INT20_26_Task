@@ -1,6 +1,7 @@
+using Domain.Model.AdminProfile;
 using Microsoft.AspNetCore.Identity;
 
-namespace Domain.Model;
+namespace Domain.Model.Auth;
 
 /// <summary>
 /// The identity entity for every person who can log in to the system.

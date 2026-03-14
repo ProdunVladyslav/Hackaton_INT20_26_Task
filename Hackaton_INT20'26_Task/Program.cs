@@ -1,12 +1,13 @@
-using System.Text;
 using Application;
-using Domain.Model;
+using Application.Repositories.Implementations;
+using Application.Repositories.Interfaces;
+using Application.Seeders;
+using Domain.Model.Auth;
 using DotNetEnv;
 using Infrastructure.Extensions;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Infrastructure.UseCases.Auth;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -19,8 +20,12 @@ if (File.Exists(envPath))
 builder.Configuration.AddEnvironmentVariables();
 
 // Port (from .env PORT=...)
-var port = Environment.GetEnvironmentVariable("PORT") ?? "5000";
-builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
+
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.ListenAnyIP(int.Parse(port));
+});
 
 // Database
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -46,54 +51,31 @@ builder.Services
     .AddEntityFrameworkStores<AppDbContext>()
     .AddDefaultTokenProviders();
 
-// JWT
-var jwtKey      = builder.Configuration["Jwt:Key"]
-                      ?? throw new InvalidOperationException("Jwt__Key is missing from .env");
-var jwtIssuer   = builder.Configuration["Jwt:Issuer"]!;
-var jwtAudience = builder.Configuration["Jwt:Audience"]!;
-
-builder.Services
-    .AddAuthentication(options =>
-    {
-        options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-        options.DefaultChallengeScheme    = JwtBearerDefaults.AuthenticationScheme;
-    })
-    .AddJwtBearer(options =>
-    {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer           = true,
-            ValidateAudience         = true,
-            ValidateLifetime         = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer              = jwtIssuer,
-            ValidAudience            = jwtAudience,
-            IssuerSigningKey         = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
-            ClockSkew                = TimeSpan.Zero
-        };
-
-        // Read JWT from HttpOnly cookie instead of Authorization header
-        options.Events = new JwtBearerEvents
-        {
-            OnMessageReceived = ctx =>
-            {
-                ctx.Token = ctx.Request.Cookies["access_token"];
-                return Task.CompletedTask;
-            }
-        };
-    });
-
-builder.Services.AddAuthorization();
-
-// Cookie policy
-builder.Services.Configure<CookiePolicyOptions>(options =>
+// Identity cookie auth (no JWT — cookie is managed by SignInManager)
+builder.Services.ConfigureApplicationCookie(options =>
 {
-    options.MinimumSameSitePolicy = SameSiteMode.Strict;
-    options.HttpOnly              = Microsoft.AspNetCore.CookiePolicy.HttpOnlyPolicy.Always;
-    options.Secure                = builder.Environment.IsDevelopment()
-                                        ? CookieSecurePolicy.SameAsRequest
-                                        : CookieSecurePolicy.Always;
+    options.Cookie.Name       = "auth";
+    options.Cookie.HttpOnly   = true;
+    options.Cookie.SameSite   = SameSiteMode.None;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.SlidingExpiration  = true;
+    options.ExpireTimeSpan     = TimeSpan.FromDays(14);
+
+    // Return 401/403 JSON instead of redirecting to a login page
+    options.Events.OnRedirectToLogin = ctx =>
+    {
+        ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        return Task.CompletedTask;
+    };
+    options.Events.OnRedirectToAccessDenied = ctx =>
+    {
+        ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
+        return Task.CompletedTask;
+    };
 });
+
+builder.Services.AddAuthentication();
+builder.Services.AddAuthorization();
 
 // CORS (from .env CORS_ORIGINS=http://localhost:3000,http://localhost:5173)
 var corsOrigins = (Environment.GetEnvironmentVariable("CORS_ORIGINS") ?? "http://localhost:3000,http://localhost:5173")
@@ -110,6 +92,19 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddInfrastructure();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
+builder.Services.AddScoped<IUnitOfWork, EFUnitOfWork>();
+builder.Services.AddScoped<INodeRepository, NodeRepository>();
+builder.Services.AddScoped<IEdgeRepository, EdgeRepository>();
+builder.Services.AddScoped<IFlowRepository, FlowRepository>();
+builder.Services.AddScoped<INodeOfferRepository, NodeOfferRepository>();
+builder.Services.AddScoped<IOfferRepository, OfferRepository>();
+builder.Services.AddScoped<IOptionRepository, OptionRepository>();
+builder.Services.AddScoped<ISessionOfferRepository, SessionOfferRepository>();
+builder.Services.AddScoped<IUserAnswerRepository, UserAnswerRepository>();
+builder.Services.AddScoped<IUserProfileRepository, UserProfileRepository>();
+builder.Services.AddScoped<IUserSessionRepository, UserSessionRepository>();
+
 
 builder.Services.AddSwaggerGen(options =>
 {
@@ -124,10 +119,10 @@ builder.Services.AddSwaggerGen(options =>
 
     options.AddSecurityDefinition("cookieAuth", new OpenApiSecurityScheme
     {
-        Name        = "access_token",
+        Name        = "auth",
         Type        = SecuritySchemeType.ApiKey,
         In          = ParameterLocation.Cookie,
-        Description = "HttpOnly JWT cookie. Call POST /api/auth/login first, then use Try it out."
+        Description = "HttpOnly Identity cookie. Call POST /api/auth/login first, then use Try it out."
     });
 
     options.AddSecurityRequirement(new OpenApiSecurityRequirement
@@ -152,9 +147,7 @@ app.UseSwaggerUI(c =>
     c.RoutePrefix = "swagger";
 });
 
-app.UseHttpsRedirection();
 app.UseCors("FrontendPolicy");
-app.UseCookiePolicy();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
@@ -164,6 +157,7 @@ if (app.Environment.IsDevelopment())
 {
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    await DbSeeder.SeedAsync(scope.ServiceProvider);
 }
 
 app.Run();

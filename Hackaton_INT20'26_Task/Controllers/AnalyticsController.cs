@@ -1,0 +1,92 @@
+using Infrastructure.Contracts.Analytics.Responses;
+using Infrastructure.Contracts.Flows.Responses;
+using Infrastructure.UseCases.Analytics;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Swashbuckle.AspNetCore.Annotations;
+
+namespace Hackaton_INT20_26_Task.Controllers;
+
+/// <summary>
+/// Admin analytics endpoints.
+/// Requires authentication.
+/// </summary>
+[ApiController]
+[Route("api/admin/analytics")]
+[Authorize]
+[Produces("application/json")]
+[Tags("Admin — Analytics")]
+public sealed class AnalyticsController : ControllerBase
+{
+    private readonly SessionStatsUseCase _sessionStats;
+    private readonly OfferStatsUseCase _offerStats;
+    private readonly DropOffUseCase _dropOff;
+
+    public AnalyticsController(
+        SessionStatsUseCase sessionStats,
+        OfferStatsUseCase offerStats,
+        DropOffUseCase dropOff)
+    {
+        _sessionStats = sessionStats;
+        _offerStats = offerStats;
+        _dropOff = dropOff;
+    }
+
+    // ── GET /api/admin/analytics/sessions ──────────────────────────────────────
+
+    [HttpGet("sessions")]
+    [SwaggerOperation(
+        Summary = "Get session statistics",
+        Description = "Returns overall session metrics: counts by status, completion rate, abandon rate.",
+        OperationId = "Analytics_GetSessionStats")]
+    [SwaggerResponse(200, "Session statistics.", typeof(SessionStatsResponse))]
+    public async Task<IActionResult> GetSessionStats(CancellationToken ct)
+    {
+        var result = await _sessionStats.ExecuteAsync(ct);
+        return ToActionResult(result);
+    }
+
+    // ── GET /api/admin/analytics/offers ────────────────────────────────────────
+
+    [HttpGet("offers")]
+    [SwaggerOperation(
+        Summary = "Get offer statistics",
+        Description = "Returns per-offer metrics: times presented, times converted, conversion rate.",
+        OperationId = "Analytics_GetOfferStats")]
+    [SwaggerResponse(200, "Offer statistics.", typeof(OfferStatsResponse))]
+    public async Task<IActionResult> GetOfferStats(CancellationToken ct)
+    {
+        var result = await _offerStats.ExecuteAsync(ct);
+        return ToActionResult(result);
+    }
+
+    // ── GET /api/admin/analytics/drop-offs ─────────────────────────────────────
+
+    [HttpGet("drop-offs")]
+    [SwaggerOperation(
+        Summary = "Get drop-off analysis",
+        Description = "Returns drop-off metrics per node: sessions stuck there, drop-off rate.",
+        OperationId = "Analytics_GetDropOffs")]
+    [SwaggerResponse(200, "Drop-off analysis.", typeof(DropOffResponse))]
+    public async Task<IActionResult> GetDropOffs(CancellationToken ct)
+    {
+        var result = await _dropOff.ExecuteAsync(ct);
+        return ToActionResult(result);
+    }
+
+    // ── Helpers ────────────────────────────────────────────────────────────────
+
+    private IActionResult ToActionResult<T>(FlowResult<T> result)
+    {
+        if (result.Success)
+            return Ok(result.Data);
+
+        return result.StatusCode switch
+        {
+            404 => NotFound(new { message = result.ErrorMessage }),
+            409 => Conflict(new { message = result.ErrorMessage }),
+            422 => UnprocessableEntity(new { message = result.ErrorMessage }),
+            _   => BadRequest(new { message = result.ErrorMessage })
+        };
+    }
+}

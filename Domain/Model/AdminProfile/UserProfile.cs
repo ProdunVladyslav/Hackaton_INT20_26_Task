@@ -1,4 +1,6 @@
-namespace Domain.Model;
+using Domain.Model.Auth;
+
+namespace Domain.Model.AdminProfile;
 
 /// <summary>
 /// The domain profile entity — everything about the user beyond "can they log in?".
