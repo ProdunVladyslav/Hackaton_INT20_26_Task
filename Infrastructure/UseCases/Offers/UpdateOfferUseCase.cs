@@ -47,11 +47,11 @@ public sealed class UpdateOfferUseCase
             if (request.DigitalContent is not null)
                 offer.SetDigitalContent(request.DigitalContent);
 
-            if (request.KitName is not null)
-                offer.SetKitName(request.KitName);
+            if (request.PhysicalWellnessKitName is not null)
+                offer.SetPhysicalWellnessKitName(request.PhysicalWellnessKitName);
 
-            if (request.KitContents is not null)
-                offer.SetKitContents(request.KitContents);
+            if (request.PhysicalWellnessKitItems is not null)
+                offer.SetPhysicalWellnessKitItems(request.PhysicalWellnessKitItems);
 
             if (request.ImageUrl is not null)
                 offer.SetImageUrl(request.ImageUrl);
@@ -74,8 +74,8 @@ public sealed class UpdateOfferUseCase
                 Description: offer.Description,
                 Duration: offer.Duration,
                 DigitalContent: offer.DigitalContent,
-                KitName: offer.KitName,
-                KitContents: offer.KitContents,
+                PhysicalWellnessKitName: offer.PhysicalWellnessKitName,
+                PhysicalWellnessKitItems: offer.PhysicalWellnessKitItems,
                 Price: offer.Price,
                 ImageUrl: offer.ImageUrl,
                 CtaText: offer.CtaText,

@@ -173,6 +173,17 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
             entity.Property(n => n.MediaUrl)
                 .HasMaxLength(1000);
 
+            // AnswerType stored as human-readable string; nullable (non-Question nodes leave it null).
+            entity.Property(n => n.AnswerType)
+                .HasConversion<string>()
+                .HasMaxLength(50);
+
+            entity.Property(n => n.SliderMin)
+                .HasColumnType("numeric(18,4)");
+
+            entity.Property(n => n.SliderMax)
+                .HasColumnType("numeric(18,4)");
+
             // Node → Options (1:N)
             // Deleting a node deletes all its answer options.
             entity.HasMany(n => n.Options)
@@ -278,10 +289,10 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
             entity.Property(o => o.DigitalContent)
                 .HasMaxLength(2000);
 
-            entity.Property(o => o.KitName)
+            entity.Property(o => o.PhysicalWellnessKitName)
                 .HasMaxLength(300);
 
-            entity.Property(o => o.KitContents)
+            entity.Property(o => o.PhysicalWellnessKitItems)
                 .HasMaxLength(4000);
 
             // Price: 18 significant digits, 2 decimal places. Nullable = free tier.

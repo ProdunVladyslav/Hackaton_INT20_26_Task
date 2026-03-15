@@ -52,6 +52,9 @@ public static class FlowMapper
             PositionX    : node.PositionX,
             PositionY    : node.PositionY,
             CreatedAt    : node.CreatedAt,
+            AnswerType   : node.AnswerType?.ToString(),
+            SliderMin    : node.SliderMin,
+            SliderMax    : node.SliderMax,
             Options      : node.Options.Select(ToOptionDto).ToList(),
             NodeOffers   : new List<NodeOfferDto>(), // enriched separately in use case
             Stats        : null                       // enriched separately in use case

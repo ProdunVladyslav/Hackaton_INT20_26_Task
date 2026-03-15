@@ -29,30 +29,18 @@ public sealed class CreateOfferUseCase
             // Create the offer
             var offer = Offer.Create(request.Slug, request.Name);
 
-            // Set optional fields
-            if (request.Description is not null)
-                offer.SetDescription(request.Description);
-
-            if (request.Duration is not null)
-                offer.SetDuration(request.Duration);
-
-            if (request.DigitalContent is not null)
-                offer.SetDigitalContent(request.DigitalContent);
-
-            if (request.KitName is not null)
-                offer.SetKitName(request.KitName);
-
-            if (request.KitContents is not null)
-                offer.SetKitContents(request.KitContents);
-
-            if (request.ImageUrl is not null)
-                offer.SetImageUrl(request.ImageUrl);
+            // Set optional fields (setters default to "" when null, satisfying NOT NULL DB columns)
+            offer.SetDescription(request.Description);
+            offer.SetDuration(request.Duration);
+            offer.SetDigitalContent(request.DigitalContent);
+            offer.SetPhysicalWellnessKitName(request.PhysicalWellnessKitName);
+            offer.SetPhysicalWellnessKitItems(request.PhysicalWellnessKitItems);
+            offer.SetImageUrl(request.ImageUrl);
 
             if (request.Price.HasValue)
                 offer.SetPrice(request.Price.Value);
 
-            if (request.CtaText is not null && request.CtaUrl is not null)
-                offer.SetCta(request.CtaText, request.CtaUrl);
+            offer.SetCta(request.CtaText ?? string.Empty, request.CtaUrl ?? string.Empty);
 
             // Add and save
             await _offerRepository.AddAsync(offer, ct);
@@ -66,8 +54,8 @@ public sealed class CreateOfferUseCase
                 Description: offer.Description,
                 Duration: offer.Duration,
                 DigitalContent: offer.DigitalContent,
-                KitName: offer.KitName,
-                KitContents: offer.KitContents,
+                PhysicalWellnessKitName: offer.PhysicalWellnessKitName,
+                PhysicalWellnessKitItems: offer.PhysicalWellnessKitItems,
                 Price: offer.Price,
                 ImageUrl: offer.ImageUrl,
                 CtaText: offer.CtaText,

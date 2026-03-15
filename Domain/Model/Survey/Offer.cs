@@ -1,9 +1,3 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
 namespace Domain.Model.Survey
 {
     public sealed class Offer
@@ -14,8 +8,8 @@ namespace Domain.Model.Survey
         public string Description { get; private set; }
         public string Duration { get; private set; }
         public string DigitalContent { get; private set; }
-        public string KitName { get; private set; }
-        public string KitContents { get; private set; }
+        public string PhysicalWellnessKitName { get; private set; }
+        public string PhysicalWellnessKitItems { get; private set; }
         public decimal? Price { get; private set; }
         public string ImageUrl { get; private set; }
         public string CtaText { get; private set; }
@@ -26,21 +20,16 @@ namespace Domain.Model.Survey
         private Offer(string slug, string name)
         {
             Id = Guid.NewGuid();
-
             SetSlug(slug);
             SetName(name);
         }
 
-        public static Offer Create(string slug, string name)
-        {
-            return new Offer(slug, name);
-        }
+        public static Offer Create(string slug, string name) => new Offer(slug, name);
 
         public void SetSlug(string slug)
         {
             if (string.IsNullOrWhiteSpace(slug))
                 throw new ArgumentException("Slug required");
-
             Slug = slug;
         }
 
@@ -48,7 +37,6 @@ namespace Domain.Model.Survey
         {
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentException("Name required");
-
             Name = name;
         }
 
@@ -56,7 +44,6 @@ namespace Domain.Model.Survey
         {
             if (price < 0)
                 throw new ArgumentException("Price must be positive");
-
             Price = price;
         }
 
@@ -66,34 +53,11 @@ namespace Domain.Model.Survey
             CtaUrl = url;
         }
 
-        public void SetDescription(string? description)
-        {
-            Description = description ?? string.Empty;
-        }
-
-        public void SetDuration(string? duration)
-        {
-            Duration = duration ?? string.Empty;
-        }
-
-        public void SetDigitalContent(string? content)
-        {
-            DigitalContent = content ?? string.Empty;
-        }
-
-        public void SetKitName(string? name)
-        {
-            KitName = name ?? string.Empty;
-        }
-
-        public void SetKitContents(string? contents)
-        {
-            KitContents = contents ?? string.Empty;
-        }
-
-        public void SetImageUrl(string? url)
-        {
-            ImageUrl = url ?? string.Empty;
-        }
+        public void SetDescription(string? description)    => Description = description ?? string.Empty;
+        public void SetDuration(string? duration)          => Duration = duration ?? string.Empty;
+        public void SetDigitalContent(string? content)     => DigitalContent = content ?? string.Empty;
+        public void SetPhysicalWellnessKitName(string? name)  => PhysicalWellnessKitName = name ?? string.Empty;
+        public void SetPhysicalWellnessKitItems(string? items) => PhysicalWellnessKitItems = items ?? string.Empty;
+        public void SetImageUrl(string? url)               => ImageUrl = url ?? string.Empty;
     }
 }

@@ -1,9 +1,3 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
 namespace Domain.Model.Survey
 {
     public enum NodeType
@@ -11,6 +5,25 @@ namespace Domain.Model.Survey
         Question,
         InfoPage,
         Offer
+    }
+
+    /// <summary>
+    /// How a Question node collects input from the user.
+    /// Only valid on Question nodes.
+    /// </summary>
+    public enum AnswerType
+    {
+        /// <summary>User picks exactly one option from the list.</summary>
+        SingleChoice,
+
+        /// <summary>User picks one or more options from the list.</summary>
+        MultipleChoice,
+
+        /// <summary>
+        /// User drags a numeric slider between SliderMin and SliderMax.
+        /// Options are not allowed on Slider questions.
+        /// </summary>
+        Slider
     }
 
     public sealed class Node
@@ -25,6 +38,11 @@ namespace Domain.Model.Survey
         public float PositionX { get; private set; }
         public float PositionY { get; private set; }
         public DateTime CreatedAt { get; private set; }
+
+        // ── Answer type (Question nodes only) ────────────────────────────────
+        public AnswerType? AnswerType { get; private set; }
+        public decimal? SliderMin { get; private set; }
+        public decimal? SliderMax { get; private set; }
 
         private readonly List<Option> _options = new();
         public IReadOnlyCollection<Option> Options => _options.AsReadOnly();
@@ -91,6 +109,43 @@ namespace Domain.Model.Survey
             AttributeKey = key;
         }
 
+        /// <summary>
+        /// Sets the answer type for a Question node.
+        ///
+        /// Rules:
+        ///   • Only Question nodes may have an AnswerType.
+        ///   • Slider requires sliderMin &lt; sliderMax and no existing options.
+        ///   • SingleChoice / MultipleChoice must not supply slider bounds.
+        ///   • Pass null to clear the answer type (resets slider bounds too).
+        /// </summary>
+        public void SetAnswerType(AnswerType? answerType, decimal? sliderMin = null, decimal? sliderMax = null)
+        {
+            if (answerType.HasValue && Type != NodeType.Question)
+                throw new InvalidOperationException("AnswerType can only be set on Question nodes.");
+
+            if (answerType == Survey.AnswerType.Slider)
+            {
+                if (sliderMin is null || sliderMax is null)
+                    throw new ArgumentException("Slider answer type requires both SliderMin and SliderMax.");
+
+                if (sliderMin >= sliderMax)
+                    throw new ArgumentException("SliderMin must be less than SliderMax.");
+
+                // Wipe existing options when switching to Slider
+                _options.Clear();
+            }
+            else if (answerType.HasValue)
+            {
+                // SingleChoice / MultipleChoice
+                if (sliderMin is not null || sliderMax is not null)
+                    throw new ArgumentException("SliderMin and SliderMax are only valid for the Slider answer type.");
+            }
+
+            AnswerType = answerType;
+            SliderMin  = answerType == Survey.AnswerType.Slider ? sliderMin : null;
+            SliderMax  = answerType == Survey.AnswerType.Slider ? sliderMax : null;
+        }
+
         public void Move(float x, float y)
         {
             PositionX = x;
@@ -100,7 +155,10 @@ namespace Domain.Model.Survey
         public void AddOption(Option option)
         {
             if (Type != NodeType.Question)
-                throw new InvalidOperationException("Only question nodes can have options");
+                throw new InvalidOperationException("Only question nodes can have options.");
+
+            if (AnswerType == Survey.AnswerType.Slider)
+                throw new InvalidOperationException("Slider questions cannot have options.");
 
             _options.Add(option);
         }

@@ -22,4 +22,18 @@ public sealed record CurrentNodeResponse(
 
 public sealed record QuizOptionResponse(Guid Id, string Label, string Value, int DisplayOrder, string? MediaUrl);
 
-public sealed record QuizOfferResponse(Guid Id, string Name, string Slug, decimal? Price, string? ImageUrl, string? CtaText, string? CtaUrl, bool IsPrimary);
+public sealed record QuizOfferResponse(
+    Guid Id,
+    string Name,
+    string Slug,
+    string? Description,
+    string? Duration,
+    string? DigitalContent,
+    string? PhysicalWellnessKitName,
+    string? PhysicalWellnessKitItems,
+    decimal? Price,
+    string? ImageUrl,
+    string? CtaText,
+    string? CtaUrl,
+    bool IsPrimary
+);

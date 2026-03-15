@@ -62,5 +62,8 @@ public sealed class MoveNodeUseCase
             node.MediaUrl,
             node.PositionX,
             node.PositionY,
-            node.CreatedAt);
+            node.CreatedAt,
+            node.AnswerType?.ToString(),
+            node.SliderMin,
+            node.SliderMax);
 }

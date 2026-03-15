@@ -28,6 +28,9 @@ public sealed record NodeDto(
     float             PositionX,
     float             PositionY,
     DateTime          CreatedAt,
+    string?           AnswerType,
+    decimal?          SliderMin,
+    decimal?          SliderMax,
     List<OptionDto>   Options,
     List<NodeOfferDto> NodeOffers,
     NodeStatsDto?     Stats

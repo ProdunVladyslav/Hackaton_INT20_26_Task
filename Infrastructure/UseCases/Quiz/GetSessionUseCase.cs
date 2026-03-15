@@ -84,7 +84,12 @@ public sealed class GetSessionUseCase
                 .Select(o => new QuizOptionResponse(o.Id, o.Label, o.Value, o.DisplayOrder, o.MediaUrl))
                 .ToList(),
             Offers: nodeOfferData
-                .Select(x => new QuizOfferResponse(x.o.Id, x.o.Name, x.o.Slug, x.o.Price, x.o.ImageUrl, x.o.CtaText, x.o.CtaUrl, x.no.IsPrimary))
+                .Select(x => new QuizOfferResponse(
+                    x.o.Id, x.o.Name, x.o.Slug,
+                    x.o.Description, x.o.Duration, x.o.DigitalContent,
+                    x.o.PhysicalWellnessKitName, x.o.PhysicalWellnessKitItems,
+                    x.o.Price, x.o.ImageUrl, x.o.CtaText, x.o.CtaUrl,
+                    x.no.IsPrimary))
                 .ToList()
         );
     }

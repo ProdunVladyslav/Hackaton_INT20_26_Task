@@ -184,6 +184,10 @@ namespace Application.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("AnswerType")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
                     b.Property<string>("AttributeKey")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -210,6 +214,12 @@ namespace Application.Migrations
 
                     b.Property<float>("PositionY")
                         .HasColumnType("real");
+
+                    b.Property<decimal?>("SliderMax")
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<decimal?>("SliderMin")
+                        .HasColumnType("numeric(18,4)");
 
                     b.Property<string>("Title")
                         .IsRequired()
@@ -291,17 +301,17 @@ namespace Application.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
 
-                    b.Property<string>("KitContents")
-                        .IsRequired()
-                        .HasMaxLength(4000)
-                        .HasColumnType("character varying(4000)");
-
-                    b.Property<string>("KitName")
+                    b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
 
-                    b.Property<string>("Name")
+                    b.Property<string>("PhysicalWellnessKitItems")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<string>("PhysicalWellnessKitName")
                         .IsRequired()
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
