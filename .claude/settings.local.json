@@ -4,7 +4,9 @@
       "Bash(cmd.exe /c \"echo %PATH%\")",
       "Bash(tr ';' '\\\\n')",
       "Read(//c/Users/Honor MagicBook PRO/source/repos/**)",
-      "Bash(dotnet build:*)"
+      "Bash(dotnet build:*)",
+      "Bash(\"C:\\\\Users\\\\produ\\\\.dotnet\\\\tools\\\\dotnet-ef.exe\" database:*)",
+      "Bash(heroku container:push --help)"
     ]
   }
 }

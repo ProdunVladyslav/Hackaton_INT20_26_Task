@@ -13,7 +13,7 @@ namespace Domain.Model.Survey
         public string Label { get; private set; }
         public string Value { get; private set; }
         public int DisplayOrder { get; private set; }
-        public string MediaUrl { get; private set; }
+        public string? MediaUrl { get; private set; }
 
         private Option() { }
 

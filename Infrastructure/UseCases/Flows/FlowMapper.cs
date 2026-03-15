@@ -10,7 +10,9 @@ namespace Infrastructure.UseCases.Flows;
 public static class FlowMapper
 {
     /// <summary>Maps a Flow to its lightweight summary representation (no nodes/edges).</summary>
-    public static FlowSummaryResponse ToSummary(Flow flow) =>
+    /// <param name="flow">The flow domain entity.</param>
+    /// <param name="stats">Optional admin statistics; pass null for public endpoints.</param>
+    public static FlowSummaryResponse ToSummary(Flow flow, FlowAdminStats? stats = null) =>
         new(
             Id          : flow.Id,
             Name        : flow.Name,
@@ -18,11 +20,14 @@ public static class FlowMapper
             IsPublished : flow.IsPublished,
             EntryNodeId : flow.EntryNodeId,
             CreatedAt   : flow.CreatedAt,
-            UpdatedAt   : flow.UpdatedAt
+            UpdatedAt   : flow.UpdatedAt,
+            Stats       : stats
         );
 
     /// <summary>Maps a Flow (with fully loaded DAG) to the detailed response.</summary>
-    public static FlowDetailResponse ToDetail(Flow flow) =>
+    /// <param name="flow">The flow domain entity with Nodes and Edges loaded.</param>
+    /// <param name="stats">Optional flow-level admin stats; pass null for public endpoints.</param>
+    public static FlowDetailResponse ToDetail(Flow flow, FlowAdminStats? stats = null) =>
         new(
             Id          : flow.Id,
             Name        : flow.Name,
@@ -32,7 +37,8 @@ public static class FlowMapper
             CreatedAt   : flow.CreatedAt,
             UpdatedAt   : flow.UpdatedAt,
             Nodes       : flow.Nodes.Select(ToNodeDto).ToList(),
-            Edges       : flow.Edges.Select(ToEdgeDto).ToList()
+            Edges       : flow.Edges.Select(ToEdgeDto).ToList(),
+            Stats       : stats
         );
 
     private static NodeDto ToNodeDto(Node node) =>
@@ -47,7 +53,8 @@ public static class FlowMapper
             PositionY    : node.PositionY,
             CreatedAt    : node.CreatedAt,
             Options      : node.Options.Select(ToOptionDto).ToList(),
-            NodeOffers   : new List<NodeOfferDto>() // loaded separately when needed
+            NodeOffers   : new List<NodeOfferDto>(), // enriched separately in use case
+            Stats        : null                       // enriched separately in use case
         );
 
     private static OptionDto ToOptionDto(Option opt) =>
