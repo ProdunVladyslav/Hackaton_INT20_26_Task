@@ -106,8 +106,7 @@ public sealed class CreateNodeUseCase
                 if (offerReq.PhysicalWellnessKitItems is not null) offer.SetPhysicalWellnessKitItems(offerReq.PhysicalWellnessKitItems);
                 if (offerReq.Price.HasValue) offer.SetPrice(offerReq.Price.Value);
                 if (offerReq.ImageUrl is not null) offer.SetImageUrl(offerReq.ImageUrl);
-                if (offerReq.CtaText is not null && offerReq.CtaUrl is not null)
-                    offer.SetCta(offerReq.CtaText, offerReq.CtaUrl);
+                offer.SetCta(offerReq.CtaText ?? "", offerReq.CtaUrl ?? "");
 
                 await _offers.AddAsync(offer, ct);
                 await _uow.SaveChangesAsync(ct);

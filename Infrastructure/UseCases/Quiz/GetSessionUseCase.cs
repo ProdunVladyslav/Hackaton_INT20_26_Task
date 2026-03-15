@@ -31,24 +31,8 @@ public sealed class GetSessionUseCase
         if (session is null)
             return FlowResult<SessionStateResponse>.NotFound("Session not found.");
 
-        // If completed, return state without current node
-        if (session.Status == SessionStatus.Completed)
-        {
-            var completedResponse = new SessionStateResponse(
-                SessionId: session.Id,
-                FlowId: session.FlowId,
-                Status: session.Status.ToString(),
-                StartedAt: session.StartedAt,
-                CompletedAt: session.CompletedAt,
-                CurrentNode: null
-            );
-            return FlowResult<SessionStateResponse>.Ok(completedResponse);
-        }
-
-        // Load current node
+        // Load current node (even for completed sessions — offers must be visible)
         var currentNode = await BuildCurrentNodeAsync(session.CurrentNodeId, ct);
-        if (currentNode is null)
-            return FlowResult<SessionStateResponse>.NotFound("Current node not found.");
 
         var response = new SessionStateResponse(
             SessionId: session.Id,

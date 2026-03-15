@@ -10,7 +10,11 @@
       "Bash(grep -E \"\\\\.\\(cs|sql|json\\)$\")",
       "Bash(where dotnet-ef:*)",
       "Bash(dotnet tool:*)",
-      "Bash(grep -l \"AnswerType\\\\|SliderMin\\\\|SliderMax\" \"C:\\\\Users\\\\produ\\\\source\\\\repos\\\\ProdunVladyslav\\\\Hackaton_INT20_26_Task\\\\Application\\\\Migrations\"/*.cs)"
+      "Bash(grep -l \"AnswerType\\\\|SliderMin\\\\|SliderMax\" \"C:\\\\Users\\\\produ\\\\source\\\\repos\\\\ProdunVladyslav\\\\Hackaton_INT20_26_Task\\\\Application\\\\Migrations\"/*.cs)",
+      "Bash(ls \"C:\\\\Users\\\\produ\\\\source\\\\repos\\\\ProdunVladyslav\\\\Hackaton_INT20_26_Task\"/*.sln)",
+      "Bash(ls \"C:\\\\Users\\\\produ\\\\source\\\\repos\\\\ProdunVladyslav\\\\Hackaton_INT20_26_Task\"/*.csproj)",
+      "Bash(find C:/Users/produ/source/repos/ProdunVladyslav/Hackaton_INT20_26_Task -maxdepth 2 -name *.sln -o -name *.csproj)",
+      "WebFetch(domain:docs.google.com)"
     ]
   }
 }

@@ -81,10 +81,9 @@ public sealed class SubmitAnswerUseCase
             .Where(a => a.SessionId == sessionId)
             .ToListAsync(ct);
 
-        var answerContext = previousAnswers.ToDictionary(
-            a => a.AttributeKey,
-            a => a.Value,
-            StringComparer.OrdinalIgnoreCase);
+        var answerContext = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var a in previousAnswers)
+            answerContext[a.AttributeKey] = a.Value;
 
         // Include the current answer (may not be saved yet if it's a non-Question node)
         if (!string.IsNullOrWhiteSpace(node.AttributeKey) && !string.IsNullOrWhiteSpace(request.Value))
@@ -99,25 +98,17 @@ public sealed class SubmitAnswerUseCase
         Edge? matchingEdge = null;
         foreach (var edge in edges)
         {
-            if (string.IsNullOrEmpty(edge.ConditionsJson))
+            if (string.IsNullOrWhiteSpace(edge.ConditionsJson))
             {
                 // Unconditional edge — always matches
                 matchingEdge = edge;
                 break;
             }
 
-            try
+            if (await EvaluateConditionsAsync(edge.ConditionsJson, answerContext, ct))
             {
-                if (await EvaluateConditionsAsync(edge.ConditionsJson, answerContext, ct))
-                {
-                    matchingEdge = edge;
-                    break;
-                }
-            }
-            catch
-            {
-                // JSON parse error, skip this edge
-                continue;
+                matchingEdge = edge;
+                break;
             }
         }
 
@@ -187,11 +178,14 @@ public sealed class SubmitAnswerUseCase
 
         if (trimmed.StartsWith('['))
         {
-            var conditions = JsonSerializer.Deserialize<List<OldEdgeCondition>>(conditionsJson, jsonOptions);
-            if (conditions == null) return false;
+            var conditions = JsonSerializer.Deserialize<List<OldEdgeCondition>>(trimmed, jsonOptions);
+            if (conditions == null || conditions.Count == 0) return true;
 
             foreach (var c in conditions)
             {
+                if (string.IsNullOrWhiteSpace(c.AttributeKey))
+                    return false;
+
                 if (!answerContext.TryGetValue(c.AttributeKey, out var storedValue))
                     return false;
 
@@ -203,11 +197,14 @@ public sealed class SubmitAnswerUseCase
 
         if (trimmed.StartsWith('{'))
         {
-            var wrapper = JsonSerializer.Deserialize<NewEdgeConditionWrapper>(conditionsJson, jsonOptions);
-            if (wrapper?.Rules == null) return false;
+            var wrapper = JsonSerializer.Deserialize<NewEdgeConditionWrapper>(trimmed, jsonOptions);
+            if (wrapper?.Rules == null || wrapper.Rules.Count == 0) return true;
 
             foreach (var r in wrapper.Rules)
             {
+                if (string.IsNullOrWhiteSpace(r.Attribute))
+                    return false;
+
                 if (!answerContext.TryGetValue(r.Attribute, out var storedValue))
                     return false;
 
@@ -217,7 +214,7 @@ public sealed class SubmitAnswerUseCase
             return true;
         }
 
-        return false;
+        return true;
     }
 
     private async Task<bool> EvalOperatorAsync(
@@ -225,8 +222,8 @@ public sealed class SubmitAnswerUseCase
     {
         switch (op.ToLowerInvariant())
         {
-            case "eq":      return storedValue == condValue;
-            case "neq":     return storedValue != condValue;
+            case "eq":      return string.Equals(storedValue, condValue, StringComparison.OrdinalIgnoreCase);
+            case "neq":     return !string.Equals(storedValue, condValue, StringComparison.OrdinalIgnoreCase);
             case "in":      return condValue.Split(',', StringSplitOptions.TrimEntries)
                                             .Contains(storedValue, StringComparer.OrdinalIgnoreCase);
             case "between": return await EvalBetweenAsync(storedValue, condValue, condValueTo, ct);

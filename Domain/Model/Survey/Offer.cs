@@ -22,6 +22,14 @@ namespace Domain.Model.Survey
             Id = Guid.NewGuid();
             SetSlug(slug);
             SetName(name);
+            Description = string.Empty;
+            Duration = string.Empty;
+            DigitalContent = string.Empty;
+            PhysicalWellnessKitName = string.Empty;
+            PhysicalWellnessKitItems = string.Empty;
+            ImageUrl = string.Empty;
+            CtaText = string.Empty;
+            CtaUrl = string.Empty;
         }
 
         public static Offer Create(string slug, string name) => new Offer(slug, name);
