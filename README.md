@@ -1,3 +1,11 @@
+ADMIN CREDS
+```
+EMAIL = admin@example.com
+PASSWORD = Admin123!
+```
+
+DEPLOYED - [here](https://course-decider-betterme-a2fb7653487d.herokuapp.com/swagger/index.html)
+
 # Course Decider (BetterMe Hackathon INT20-26)
 
 Survey/quiz engine backend that lets admins design dynamic question flows with branching logic, present targeted offers, and track analytics.
