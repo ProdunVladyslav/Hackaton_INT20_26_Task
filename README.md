@@ -6,6 +6,8 @@ PASSWORD = Admin123!
 
 DEPLOYED - [here](https://course-decider-betterme-a2fb7653487d.herokuapp.com/swagger/index.html)
 
+FRONTEND REPO - [here](https://github.com/ProdunVladyslav/Hackaton_INT_20_26_Frontend)
+
 ## Local start instructions (via Docker)
 1. In root directory (where docker-compose.yml is located) run this:
 ```
