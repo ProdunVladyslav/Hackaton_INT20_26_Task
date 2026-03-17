@@ -1,3 +1,6 @@
+# Course Decider (BetterMe Hackathon INT20-26)
+
+Survey/quiz engine backend that lets admins design dynamic question flows with branching logic, present targeted offers, and track analytics.
 ADMIN CREDS
 ```
 EMAIL = admin@example.com
@@ -14,10 +17,14 @@ FRONTEND REPO - [here](https://github.com/ProdunVladyslav/Hackaton_INT_20_26_Fro
 docker compose up --build
 ```
 2. Visit [local Swagger](http://localhost:8080/swagger/index.html)
+## Admin Flow
+https://github.com/user-attachments/assets/68dffdcd-af7c-48e2-9084-aa7e421f4d91
 
-# Course Decider (BetterMe Hackathon INT20-26)
+## User Flow
+https://github.com/user-attachments/assets/ed9b2c5c-0057-4433-a4c2-df61110e2847
 
-Survey/quiz engine backend that lets admins design dynamic question flows with branching logic, present targeted offers, and track analytics.
+## Full Demo
+https://github.com/user-attachments/assets/cc4d6854-8c55-44f5-ae60-6b041eda51e5
 
 ## Tech Stack
 
