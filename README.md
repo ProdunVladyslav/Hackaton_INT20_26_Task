@@ -18,13 +18,13 @@ docker compose up --build
 ```
 2. Visit [local Swagger](http://localhost:8080/swagger/index.html)
 ## Admin Flow
-https://github.com/user-attachments/assets/68dffdcd-af7c-48e2-9084-aa7e421f4d91
+https://github.com/user-attachments/assets/1948e358-88c4-425b-afd5-963338445980
 
 ## User Flow
-https://github.com/user-attachments/assets/ed9b2c5c-0057-4433-a4c2-df61110e2847
+https://github.com/user-attachments/assets/491d5340-3f30-4b3d-b274-ca7be1b48cc1
 
 ## Full Demo
-https://github.com/user-attachments/assets/cc4d6854-8c55-44f5-ae60-6b041eda51e5
+https://github.com/user-attachments/assets/b324ab39-d578-4b10-a65f-d8ee50ce15da
 
 ## Tech Stack
 
