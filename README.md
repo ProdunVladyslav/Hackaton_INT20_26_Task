@@ -6,6 +6,13 @@ PASSWORD = Admin123!
 
 DEPLOYED - [here](https://course-decider-betterme-a2fb7653487d.herokuapp.com/swagger/index.html)
 
+## Local start instructions (via Docker)
+1. In root directory (where docker-compose.yml is located) run this:
+```
+docker compose up --build
+```
+2. Visit [local Swagger](http://localhost:8080/swagger/index.html)
+
 # Course Decider (BetterMe Hackathon INT20-26)
 
 Survey/quiz engine backend that lets admins design dynamic question flows with branching logic, present targeted offers, and track analytics.
