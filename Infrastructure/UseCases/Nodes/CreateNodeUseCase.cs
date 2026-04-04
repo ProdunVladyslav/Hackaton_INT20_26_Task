@@ -50,11 +50,60 @@ public sealed class CreateNodeUseCase
                 $"Invalid node type '{request.Type}'. Must be one of: {string.Join(", ", Enum.GetNames(typeof(NodeType)))}",
                 statusCode: 400);
 
+        // ── Question-specific required fields ────────────────────────────────────
+        if (nodeType == NodeType.Question)
+        {
+            if (string.IsNullOrWhiteSpace(request.AttributeKey))
+                return FlowResult<NodeResponse>.Fail(
+                    "Question nodes require 'AttributeKey'.",
+                    statusCode: 400);
+
+            if (string.IsNullOrWhiteSpace(request.AnswerType))
+                return FlowResult<NodeResponse>.Fail(
+                    "Question nodes require 'AnswerType'.",
+                    statusCode: 400);
+
+            if (string.IsNullOrWhiteSpace(request.ValueKind))
+                return FlowResult<NodeResponse>.Fail(
+                    "Question nodes require 'ValueKind'.",
+                    statusCode: 400);
+        }
+
         // Inline offer only makes sense for Offer nodes
         if (request.Offer != null && nodeType != NodeType.Offer)
             return FlowResult<NodeResponse>.Fail(
                 "Inline offer can only be provided for nodes of type 'Offer'.",
                 statusCode: 400);
+
+        // ── Parse Question enums (only when Question) ─────────────────────────────
+        AnswerType? answerType = null;
+        ValueKind? valueKind = null;
+
+        if (nodeType == NodeType.Question)
+        {
+            if (!Enum.TryParse<AnswerType>(request.AnswerType, ignoreCase: true, out var parsedAnswerType))
+                return FlowResult<NodeResponse>.Fail(
+                    $"Invalid answer type '{request.AnswerType}'. Must be one of: {string.Join(", ", Enum.GetNames(typeof(AnswerType)))}",
+                    statusCode: 400);
+
+            if (!Enum.TryParse<ValueKind>(request.ValueKind, ignoreCase: true, out var parsedValueKind))
+                return FlowResult<NodeResponse>.Fail(
+                    $"Invalid value kind '{request.ValueKind}'. Must be one of: {string.Join(", ", Enum.GetNames(typeof(ValueKind)))}",
+                    statusCode: 400);
+
+            // Guard conflicting ValueKind for same AttributeKey across the flow
+            var existingNode = await _nodes.FirstOrDefaultAsync(
+                n => n.FlowId == flowId && n.AttributeKey == request.AttributeKey, ct);
+
+            if (existingNode is not null && existingNode.ValueKind != parsedValueKind)
+                return FlowResult<NodeResponse>.Fail(
+                    $"AttributeKey '{request.AttributeKey}' is already used with ValueKind " +
+                    $"'{existingNode.ValueKind}'. All nodes sharing an AttributeKey must have the same ValueKind.",
+                    statusCode: 409);
+
+            answerType = parsedAnswerType;
+            valueKind = parsedValueKind;
+        }
 
         try
         {
@@ -72,19 +121,12 @@ public sealed class CreateNodeUseCase
             if (!string.IsNullOrWhiteSpace(request.MediaUrl))
                 node.SetMedia(request.MediaUrl);
 
-            if (request.AnswerType != null)
-            {
-                if (!Enum.TryParse<Domain.Model.Survey.AnswerType>(request.AnswerType, ignoreCase: true, out var answerType))
-                    return FlowResult<NodeResponse>.Fail(
-                        $"Invalid answer type '{request.AnswerType}'. Must be one of: {string.Join(", ", Enum.GetNames(typeof(Domain.Model.Survey.AnswerType)))}",
-                        statusCode: 400);
-
-                node.SetAnswerType(answerType, request.SliderMin, request.SliderMax);
-            }
+            if (answerType.HasValue)
+                node.SetAnswerType(answerType.Value, request.SliderMin, request.SliderMax, valueKind);
 
             await _nodes.AddAsync(node, ct);
 
-            // ── Inline offer creation ────────────────────────────────────────
+            // ── Inline offer creation ─────────────────────────────────────────────
             Offer? linkedOffer = null;
             if (request.Offer is { } offerReq)
             {
@@ -93,7 +135,6 @@ public sealed class CreateNodeUseCase
                     ? offerReq.Slug
                     : GenerateSlug(offerName);
 
-                // Ensure slug uniqueness
                 if (await _offers.SlugExistsAsync(slug, null, ct))
                     slug = $"{slug}-{Guid.NewGuid().ToString("N")[..8]}";
 

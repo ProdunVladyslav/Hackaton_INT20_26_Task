@@ -3,6 +3,7 @@ using Domain.Model.Survey;
 using Infrastructure.Contracts.Nodes.Requests;
 using Infrastructure.Contracts.Nodes.Responses;
 using Infrastructure.Contracts.Flows.Responses;
+using System.Security.Cryptography.X509Certificates;
 
 namespace Infrastructure.UseCases.Nodes;
 
@@ -35,13 +36,20 @@ public sealed class MoveNodeUseCase
         if (node.FlowId != flowId)
             return FlowResult<NodeResponse>.NotFound("Node not found in this flow.");
 
+        float previousXPos = node.PositionX;
+        float previousYPos = node.PositionY;
+
         // Move node
         try
         {
             node.Move(request.PositionX, request.PositionY);
 
-            _nodes.Update(node);
-            await _uow.SaveChangesAsync();
+            var affected = await _uow.SaveChangesAsync(ct);
+
+            var positionChanged = !(previousXPos == node.PositionX && previousYPos == node.PositionY);
+
+            if (affected == 0 && positionChanged)
+                return FlowResult<NodeResponse>.Fail("Save wrote 0 rows — position not persisted.", 500);
 
             return FlowResult<NodeResponse>.Ok(ToResponse(node));
         }

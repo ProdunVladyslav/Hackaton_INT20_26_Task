@@ -2,7 +2,6 @@ namespace Infrastructure.Contracts.Nodes.Requests;
 
 public sealed record UpdateNodeRequest(
     string? Title,
-    string? AttributeKey,
     string? Description,
     string? MediaUrl,
     /// <summary>SingleChoice | MultipleChoice | Slider | null to clear. Only valid for Question nodes.</summary>

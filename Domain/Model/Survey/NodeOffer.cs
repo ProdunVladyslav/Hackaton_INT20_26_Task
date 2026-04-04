@@ -11,6 +11,11 @@ namespace Domain.Model.Survey
         public Guid Id { get; private set; }
         public Guid NodeId { get; private set; }
         public Guid OfferId { get; private set; }
+
+        public Offer Offer { get; private set; } = null!;
+        public Node Node { get; private set; } = null!;
+
+
         public bool IsPrimary { get; private set; }
 
         private NodeOffer() { }

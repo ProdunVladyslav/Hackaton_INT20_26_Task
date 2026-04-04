@@ -25,13 +25,22 @@ public sealed class DropOffUseCase
         var total = await _db.UserSessions.CountAsync(ct);
 
         var dropoffs = await _db.UserSessions
-            .Where(s => s.Status != SessionStatus.Completed)
+            .Where(s => s.Status == SessionStatus.Abandoned)
             .Join(_db.Nodes, s => s.CurrentNodeId, n => n.Id, (s, n) => new { s, n })
-            .GroupBy(x => new { x.n.Id, x.n.Title })
+            .Join(_db.Flows, x => x.n.FlowId, f => f.Id, (x, f) => new { x.n, f })
+            .GroupBy(x => new
+            {
+                NodeId = x.n.Id,
+                NodeTitle = x.n.Title,
+                FlowId = x.f.Id,
+                FlowTitle = x.f.Name
+            })
             .Select(g => new
             {
-                NodeId = g.Key.Id,
-                NodeTitle = g.Key.Title,
+                g.Key.NodeId,
+                g.Key.NodeTitle,
+                g.Key.FlowId,
+                g.Key.FlowTitle,
                 Count = g.Count()
             })
             .OrderByDescending(x => x.Count)
@@ -40,6 +49,8 @@ public sealed class DropOffUseCase
         var items = dropoffs.Select(d => new DropOffItem(
             d.NodeId,
             d.NodeTitle,
+            d.FlowId,
+            d.FlowTitle,
             d.Count,
             total > 0 ? Math.Round((double)d.Count / total * 100, 2) : 0
         )).ToList();

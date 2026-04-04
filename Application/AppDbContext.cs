@@ -322,7 +322,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
 
             // NodeOffer → Node (M:1)
             // Cascade: removing a node removes all its offer links.
-            entity.HasOne<Node>()
+            entity.HasOne(no => no.Node)
                 .WithMany()
                 .HasForeignKey(no => no.NodeId)
                 .IsRequired()
@@ -331,11 +331,11 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
             // NodeOffer → Offer (M:1)
             // Restrict: cannot delete an Offer while it is still linked to a node.
             // Callers must unlink first (remove all NodeOffers for the offer).
-            entity.HasOne<Offer>()
+            entity.HasOne(no => no.Offer)
                 .WithMany()
                 .HasForeignKey(no => no.OfferId)
                 .IsRequired()
-                .OnDelete(DeleteBehavior.Restrict);
+                .OnDelete(DeleteBehavior.Cascade);
 
             // One offer can only appear once per node.
             entity.HasIndex(no => new { no.NodeId, no.OfferId })

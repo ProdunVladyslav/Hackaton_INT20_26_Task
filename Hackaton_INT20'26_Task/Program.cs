@@ -5,7 +5,8 @@ using Application.Seeders;
 using Domain.Model.Auth;
 using DotNetEnv;
 using Infrastructure.Extensions;
-using Infrastructure.UseCases.Auth;
+using Infrastructure.Services;
+using Infrastructure.Services.Implementations;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
@@ -56,8 +57,12 @@ builder.Services.ConfigureApplicationCookie(options =>
 {
     options.Cookie.Name       = "auth";
     options.Cookie.HttpOnly   = true;
-    options.Cookie.SameSite   = SameSiteMode.None;
-    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.Cookie.SameSite = builder.Environment.IsDevelopment()
+        ? SameSiteMode.Lax
+        : SameSiteMode.None;
+    options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+        ? CookieSecurePolicy.None
+        : CookieSecurePolicy.Always;
     options.SlidingExpiration  = true;
     options.ExpireTimeSpan     = TimeSpan.FromDays(14);
 
@@ -78,6 +83,9 @@ builder.Services.AddAuthentication();
 builder.Services.AddAuthorization();
 
 // CORS (from .env CORS_ORIGINS=http://localhost:3000,http://localhost:5173)
+
+Console.WriteLine("CORS: " + Environment.GetEnvironmentVariable("CORS_ORIGINS"));
+
 var corsOrigins = (Environment.GetEnvironmentVariable("CORS_ORIGINS") ?? "http://localhost:3000,http://localhost:5173")
     .Split(',', StringSplitOptions.RemoveEmptyEntries);
 
@@ -89,11 +97,14 @@ builder.Services.AddCors(options =>
               .AllowCredentials()));
 
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ClaudeService>();
 builder.Services.AddInfrastructure();
+builder.Services.AddClaudeService(builder.Configuration);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 builder.Services.AddScoped<IUnitOfWork, EFUnitOfWork>();
+builder.Services.AddHostedService<SessionAbandonmentService>();
 builder.Services.AddScoped<INodeRepository, NodeRepository>();
 builder.Services.AddScoped<IEdgeRepository, EdgeRepository>();
 builder.Services.AddScoped<IFlowRepository, FlowRepository>();
@@ -157,7 +168,8 @@ if (app.Environment.IsDevelopment())
 {
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await DbSeeder.SeedAsync(scope.ServiceProvider);
-}
 
+    await db.Database.MigrateAsync();                  // create tables first
+    await DbSeeder.SeedAsync(scope.ServiceProvider);   // then seed data
+}
 app.Run();

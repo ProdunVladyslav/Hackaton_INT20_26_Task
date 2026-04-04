@@ -14,6 +14,7 @@ public sealed class UpdateNodeUseCase
 {
     private readonly INodeRepository _nodes;
     private readonly IOptionRepository _options;
+    private readonly IEdgeRepository _edges;
     private readonly INodeOfferRepository _nodeOffers;
     private readonly IOfferRepository _offerRepo;
     private readonly IUnitOfWork _uow;
@@ -23,10 +24,12 @@ public sealed class UpdateNodeUseCase
         IOptionRepository options,
         INodeOfferRepository nodeOffers,
         IOfferRepository offerRepo,
+        IEdgeRepository edgeRepo,
         IUnitOfWork uow)
     {
         _nodes = nodes;
         _options = options;
+        _edges = edgeRepo;
         _nodeOffers = nodeOffers;
         _offerRepo = offerRepo;
         _uow = uow;
@@ -53,9 +56,6 @@ public sealed class UpdateNodeUseCase
             if (!string.IsNullOrWhiteSpace(request.Title))
                 node.SetTitle(request.Title);
 
-            if (request.AttributeKey != null)
-                node.SetAttributeKey(request.AttributeKey);
-
             if (request.Description != null)
                 node.SetDescription(request.Description);
 
@@ -69,13 +69,13 @@ public sealed class UpdateNodeUseCase
             }
             else if (request.AnswerType != null)
             {
-                if (!Enum.TryParse<Domain.Model.Survey.AnswerType>(request.AnswerType, ignoreCase: true, out var answerType))
+                if (!Enum.TryParse<AnswerType>(request.AnswerType, ignoreCase: true, out var answerType))
                     return FlowResult<NodeResponse>.Fail(
-                        $"Invalid answer type '{request.AnswerType}'. Must be one of: {string.Join(", ", Enum.GetNames(typeof(Domain.Model.Survey.AnswerType)))}",
+                        $"Invalid answer type '{request.AnswerType}'. Must be one of: {string.Join(", ", Enum.GetNames(typeof(AnswerType)))}",
                         statusCode: 400);
 
                 // Wipe existing options when switching to Slider
-                if (answerType == Domain.Model.Survey.AnswerType.Slider && node.Options.Count > 0)
+                if (answerType == AnswerType.Slider && node.Options.Count > 0)
                 {
                     _options.RemoveRange(node.Options);
                 }
@@ -115,7 +115,6 @@ public sealed class UpdateNodeUseCase
                 }
             }
 
-            _nodes.Update(node);
             await _uow.SaveChangesAsync();
 
             return FlowResult<NodeResponse>.Ok(ToResponse(node));

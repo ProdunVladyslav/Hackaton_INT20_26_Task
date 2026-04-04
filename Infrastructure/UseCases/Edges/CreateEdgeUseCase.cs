@@ -3,6 +3,7 @@ using Domain.Model.Survey;
 using Infrastructure.Contracts.Edges.Requests;
 using Infrastructure.Contracts.Edges.Responses;
 using Infrastructure.Contracts.Flows.Responses;
+using Infrastructure.Services.Validators;
 
 namespace Infrastructure.UseCases.Edges;
 
@@ -42,6 +43,36 @@ public sealed class CreateEdgeUseCase
             return FlowResult<EdgeResponse>.Fail(
                 "Source node not found in this flow.",
                 statusCode: 404);
+
+        var referencedKeys = ConditionsJsonValidator.GetAttributeKeys(request.ConditionsJson);
+        foreach (var keyValue in referencedKeys)
+        {
+            var nodeWithKey = await _nodes.FirstOrDefaultAsync(
+                n => n.FlowId == flowId && n.AttributeKey == keyValue.Key, ct);
+
+            if (nodeWithKey == null)
+                return FlowResult<EdgeResponse>.Fail(
+                    $"AttributeKey '{keyValue.Key}' is not defined by any node in this flow.",
+                    statusCode: 422);
+
+            var usedOperators = keyValue.Value
+                .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+            var allowedOperators = nodeWithKey.ValueKind switch
+            {
+                ValueKind.Text => new[] { "eq", "neq", "in" },
+                ValueKind.Numeric => new[] { "eq", "neq", "in", "gt", "gte", "lt", "lte", "between" },
+                _ => new[] { "eq", "neq" }
+            };
+
+            var invalidOps = usedOperators.Except(allowedOperators, StringComparer.OrdinalIgnoreCase).ToList();
+            if (invalidOps.Count > 0)
+                return FlowResult<EdgeResponse>.Fail(
+                    $"AttributeKey '{keyValue.Key}' has ValueKind '{nodeWithKey.ValueKind}' which does not support " +
+                    $"operator(s): {string.Join(", ", invalidOps)}. " +
+                    $"Allowed: {string.Join(", ", allowedOperators)}.",
+                    statusCode: 422);
+        }
 
         // Validate target node exists and belongs to flow
         var targetNodeExists = await _nodes.AnyAsync(n => n.Id == request.TargetNodeId && n.FlowId == flowId, ct);

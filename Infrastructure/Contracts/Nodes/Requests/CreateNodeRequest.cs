@@ -1,3 +1,4 @@
+using Domain.Model.Survey;
 using System.ComponentModel.DataAnnotations;
 
 namespace Infrastructure.Contracts.Nodes.Requests;
@@ -12,6 +13,7 @@ public sealed record CreateNodeRequest(
     float PositionY = 0f,
     /// <summary>SingleChoice | MultipleChoice | Slider. Only valid for Question nodes.</summary>
     string? AnswerType = null,
+    string? ValueKind = null,
     decimal? SliderMin = null,
     decimal? SliderMax = null,
     /// <summary>

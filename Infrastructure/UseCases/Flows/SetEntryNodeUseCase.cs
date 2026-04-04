@@ -1,4 +1,5 @@
 using Application.Repositories.Interfaces;
+using Domain.Model.Survey;
 using Infrastructure.Contracts.Flows.Requests;
 using Infrastructure.Contracts.Flows.Responses;
 
@@ -11,12 +12,14 @@ namespace Infrastructure.UseCases.Flows;
 public sealed class SetEntryNodeUseCase
 {
     private readonly IFlowRepository _flows;
+    private readonly INodeRepository _nodes;
     private readonly IUnitOfWork     _uow;
 
-    public SetEntryNodeUseCase(IFlowRepository flows, IUnitOfWork uow)
+    public SetEntryNodeUseCase(IFlowRepository flows, IUnitOfWork uow, INodeRepository nodes)
     {
         _flows = flows;
-        _uow   = uow;
+        _nodes = nodes;
+        _uow = uow;
     }
 
     public async Task<FlowResult<FlowSummaryResponse>> ExecuteAsync(
@@ -29,6 +32,13 @@ public sealed class SetEntryNodeUseCase
 
         if (flow is null)
             return FlowResult<FlowSummaryResponse>.NotFound($"Flow {flowId} not found.");
+
+        var node = await _nodes.FirstOrDefaultAsync(n => n.Id == request.EntryNodeId);
+        if (node is null)
+            return FlowResult<FlowSummaryResponse>.NotFound($"Node {request.EntryNodeId} not found.");
+
+        if (node.Type == NodeType.Offer)
+            return FlowResult<FlowSummaryResponse>.Fail("Offer nodes cannot be entry nodes.", statusCode: 422);
 
         try
         {

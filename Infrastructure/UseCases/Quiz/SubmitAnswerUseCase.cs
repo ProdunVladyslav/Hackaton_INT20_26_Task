@@ -18,6 +18,9 @@ namespace Infrastructure.UseCases.Quiz;
 /// 1. Load session, verify it's InProgress
 /// 2. Verify the submitted node matches current node
 /// 3. Record the answer
+/// 
+/// 
+/// 
 /// 4. Find next node by evaluating edges (with conditions)
 /// 5. Move to next node or complete the session
 /// 6. Return updated session state
@@ -64,6 +67,12 @@ public sealed class SubmitAnswerUseCase
         if (node is null)
             return FlowResult<SessionStateResponse>.NotFound("Node not found.");
 
+        DateTime? lastAnsweredAt = await _answers.GetLastAnsweredAtAsync(sessionId);
+        if (lastAnsweredAt == null)
+        {
+            lastAnsweredAt = session.StartedAt;
+        }
+
         // Record answer only for Question nodes
         if (node.Type == NodeType.Question && !string.IsNullOrWhiteSpace(request.Value))
         {
@@ -71,7 +80,8 @@ public sealed class SubmitAnswerUseCase
                 sessionId,
                 request.NodeId,
                 node.AttributeKey ?? "answer",
-                request.Value
+                request.Value,
+                lastAnsweredAt ?? DateTime.UtcNow
             );
             await _answers.AddAsync(answer, ct);
         }
@@ -116,6 +126,29 @@ public sealed class SubmitAnswerUseCase
         if (matchingEdge != null)
         {
             session.MoveToNode(matchingEdge.TargetNodeId);
+
+            var hasOutgoingEdges = await _db.Edges
+                .AnyAsync(e => e.SourceNodeId == matchingEdge.TargetNodeId
+                            && e.FlowId == session.FlowId, ct);
+
+            if (!hasOutgoingEdges)
+            {
+                session.Complete();
+
+                // Track offer impressions for the final node
+                var finalNodeOffers = await _db.NodeOffers
+                    .Where(no => no.NodeId == matchingEdge.TargetNodeId)
+                    .ToListAsync(ct);
+
+                foreach (var no in finalNodeOffers)
+                {
+                    var existing = await _db.SessionOffers
+                        .FirstOrDefaultAsync(so => so.SessionId == session.Id && so.OfferId == no.OfferId, ct);
+
+                    if (existing is null)
+                        await _db.SessionOffers.AddAsync(SessionOffer.Create(session.Id, no.OfferId, no.IsPrimary), ct);
+                }
+            }
         }
         else
         {
@@ -179,20 +212,20 @@ public sealed class SubmitAnswerUseCase
         if (trimmed.StartsWith('['))
         {
             var conditions = JsonSerializer.Deserialize<List<OldEdgeCondition>>(trimmed, jsonOptions);
-            if (conditions == null || conditions.Count == 0) return true;
+            if (conditions == null || conditions.Count == 0) return true; // no conditions means always match
 
             foreach (var c in conditions)
             {
-                if (string.IsNullOrWhiteSpace(c.AttributeKey))
+                if (string.IsNullOrWhiteSpace(c.AttributeKey)) // invalid condition format
                     return false;
 
-                if (!answerContext.TryGetValue(c.AttributeKey, out var storedValue))
+                if (!answerContext.TryGetValue(c.AttributeKey, out var storedValue)) // missing answer for this condition
                     return false;
 
-                if (!await EvalOperatorAsync(c.Operator ?? "eq", storedValue, c.Value, c.ValueTo, ct))
+                if (!await EvalOperatorAsync(c.Operator ?? "eq", storedValue, c.Value, c.ValueTo, ct)) // condition not met
                     return false;
             }
-            return true;
+            return true; // all conditions passed
         }
 
         if (trimmed.StartsWith('{'))
@@ -200,18 +233,38 @@ public sealed class SubmitAnswerUseCase
             var wrapper = JsonSerializer.Deserialize<NewEdgeConditionWrapper>(trimmed, jsonOptions);
             if (wrapper?.Rules == null || wrapper.Rules.Count == 0) return true;
 
-            foreach (var r in wrapper.Rules)
+            var isOr = string.Equals(wrapper.Operator, "OR", StringComparison.OrdinalIgnoreCase);
+
+            if (isOr)
             {
-                if (string.IsNullOrWhiteSpace(r.Attribute))
-                    return false;
+                // OR: at least ONE rule must pass
+                foreach (var r in wrapper.Rules)
+                {
+                    if (string.IsNullOrWhiteSpace(r.AttributeKey)) continue; // skip bad rules
 
-                if (!answerContext.TryGetValue(r.Attribute, out var storedValue))
-                    return false;
+                    if (!answerContext.TryGetValue(r.AttributeKey, out var storedValue)) continue; // key missing → can't pass
 
-                if (!await EvalOperatorAsync(r.Op, storedValue, r.Value, null, ct))
-                    return false;
+                    if (await EvalOperatorAsync(r.Operator, storedValue, r.Value, r.ValueTo, ct))
+                        return true; // one passed → whole thing passes
+                }
+                return false; // none passed
             }
-            return true;
+            else
+            {
+                // AND (default): every rule must pass
+                foreach (var r in wrapper.Rules)
+                {
+                    if (string.IsNullOrWhiteSpace(r.AttributeKey))
+                        return false;
+
+                    if (!answerContext.TryGetValue(r.AttributeKey, out var storedValue))
+                        return false;
+
+                    if (!await EvalOperatorAsync(r.Operator, storedValue, r.Value, r.ValueTo, ct))
+                        return false;
+                }
+                return true;
+            }
         }
 
         return true;
@@ -286,6 +339,10 @@ public sealed class SubmitAnswerUseCase
             Id: node.Id,
             Type: node.Type.ToString(),
             AttributeKey: node.AttributeKey,
+            AnswerType: node.AnswerType?.ToString(),
+            ValueKind: node.ValueKind?.ToString(),
+            SliderMin: node.SliderMin,
+            SliderMax: node.SliderMax,
             Title: node.Title,
             Description: node.Description,
             MediaUrl: node.MediaUrl,
@@ -308,5 +365,5 @@ public sealed class SubmitAnswerUseCase
 internal record OldEdgeCondition(string AttributeKey, string? Operator, string Value, string? ValueTo);
 
 // New object format: {"operator":"AND","rules":[{"attribute":"goal","op":"eq","value":"option_2"}]}
-internal record NewEdgeRule(string Attribute, string Op, string Value);
+internal record NewEdgeRule(string AttributeKey, string Operator, string Value, string? ValueTo);
 internal record NewEdgeConditionWrapper(string Operator, List<NewEdgeRule> Rules);

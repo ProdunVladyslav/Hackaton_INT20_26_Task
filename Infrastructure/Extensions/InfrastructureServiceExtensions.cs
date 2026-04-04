@@ -1,3 +1,5 @@
+using Infrastructure.Contracts.AIGeneration.Internal;
+using Infrastructure.UseCases.AIGeneration;
 using Infrastructure.UseCases.Analytics;
 using Infrastructure.UseCases.Auth;
 using Infrastructure.UseCases.Content;
@@ -22,6 +24,11 @@ public static class InfrastructureServiceExtensions
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services)
     {
+        services.AddSingleton<FlowGenerationJobStore>();
+        services.AddScoped<StartGenerateFlowUseCase>();
+        services.AddScoped<GetGenerateFlowStatusUseCase>();
+        services.AddScoped<GenerateFlowUseCase>();
+
         // ── Auth ──────────────────────────────────────────────────────────────
         services.AddScoped<LoginUseCase>();
         services.AddScoped<MeUseCase>();

@@ -15,7 +15,11 @@
       The validation side (reading the cookie, verifying the signature) is handled
       by the same package wired in Program.cs via AddJwtBearer().
     -->
+    <PackageReference Include="Anthropic.SDK" Version="5.10.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.25" />
+	<Content Include="Prompts\survey_flow_prompt.txt">
+		<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+	</Content>
   </ItemGroup>
 
   <ItemGroup>

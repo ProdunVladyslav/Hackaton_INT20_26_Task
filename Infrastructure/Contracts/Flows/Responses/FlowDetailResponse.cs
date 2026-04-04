@@ -15,13 +15,16 @@ public sealed record FlowDetailResponse(
     DateTime        UpdatedAt,
     List<NodeDto>   Nodes,
     List<EdgeDto>   Edges,
-    FlowAdminStats? Stats
+    FlowAdminStats? Stats,
+    IReadOnlyList<PathDistributionEntryDto> PathDistribution, // Enriched from user session data, not stored in DB
+    IReadOnlyList<AttributeKeyDto> AttributeKeys // Enriched from domain metadata, not stored in DB
 );
 
 public sealed record NodeDto(
     Guid              Id,
     string            Type,
     string?           AttributeKey,
+    string?           ValueKind,
     string            Title,
     string?           Description,
     string?           MediaUrl,
@@ -34,6 +37,27 @@ public sealed record NodeDto(
     List<OptionDto>   Options,
     List<NodeOfferDto> NodeOffers,
     NodeStatsDto?     Stats
+);
+
+public record AttributeKeyDto(
+    string Key,
+    string ValueKind,
+    string[] AllowedOperators
+);
+
+public sealed record OfferDto(
+    Guid Id,
+    string Slug,
+    string Name,
+    string Description,
+    string Duration,
+    string DigitalContent,
+    string PhysicalWellnessKitName,
+    string PhysicalWellnessKitItems,
+    decimal? Price,
+    string ImageUrl,
+    string CtaText,
+    string CtaUrl
 );
 
 /// <summary>
@@ -63,7 +87,13 @@ public sealed record NodeStatsDto(
     int OfferConversions,
 
     /// <summary>Offer conversion rate for this node (0–100, 2 dp).</summary>
-    double OfferConversionRate
+    double OfferConversionRate,
+
+    /// <summary>
+    /// Average time users spent before submitting an answer at this node.
+    /// Zero for InfoPage/Offer nodes or nodes with no recorded answers.
+    /// </summary>
+    TimeSpan AvgAnswerDuration
 );
 
 public sealed record OptionDto(
@@ -77,7 +107,8 @@ public sealed record OptionDto(
 public sealed record NodeOfferDto(
     Guid Id,
     Guid OfferId,
-    bool IsPrimary
+    bool IsPrimary,
+    OfferDto Offer
 );
 
 public sealed record EdgeDto(
@@ -86,4 +117,23 @@ public sealed record EdgeDto(
     Guid TargetNodeId,
     int Priority,
     string? Conditions
+);
+
+public sealed record NodeMinimalInfoDto
+(
+    Guid Id,
+    string Type,
+    string? AttributeKey,
+    string? ValueKind,
+    string Title,
+    string? AnswerType
+);
+
+public sealed record PathDistributionEntryDto(
+    string Path,          // raw "nodeId;nodeId;nodeId;" string
+    IReadOnlyList<NodeMinimalInfoDto> Nodes,       // parsed for convenience
+    int Count,
+    int Completed,
+    int Abandoned,
+    int InProgress
 );

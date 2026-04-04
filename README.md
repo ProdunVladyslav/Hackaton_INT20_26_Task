@@ -15,6 +15,7 @@ Survey/quiz engine backend that lets admins design dynamic question flows with b
 - .NET 8 / ASP.NET Core Web API
 - PostgreSQL + Entity Framework Core 8
 - ASP.NET Identity (cookie auth) + JWT
+- Anthropic Claude API (AI-powered flow generation)
 - Docker (Heroku deployment)
 
 ## Project Structure
@@ -25,6 +26,50 @@ Application/      EF Core DbContext, migrations, repositories
 Infrastructure/   Use cases, request/response DTOs, mappers
 Hackaton_INT20'26_Task/   API host, controllers
 ```
+
+---
+
+## AI-Powered Flow Generation
+
+Admins can generate entire survey flows from a single natural-language prompt using the Anthropic Claude API (`claude-sonnet-4-20250514`).
+
+### How It Works
+
+1. **Admin submits a prompt** describing the desired quiz (topic, target audience, offers) via `POST /api/admin/flows/generate`.
+2. The server returns a **job ID** immediately (HTTP 202) and spawns a background task.
+3. Claude receives the prompt along with a **744-line system prompt** that encodes the full domain schema, layout rules, and structural constraints.
+4. Claude returns a complete flow plan as structured JSON — flow metadata, nodes, options, edges with conditions, and offers.
+5. The backend **orchestrates creation** in sequence: create flow → create nodes (mapping temp IDs to real IDs) → create options → create edges (with condition validation) → set entry node.
+6. Admin polls `GET /api/admin/flows/generate/status/{jobId}` until status is `Done` or `Failed`.
+
+### AI Constraints & Quality Guarantees
+
+- **Max 15 nodes** per generated flow (questions + info pages + offers).
+- **Branching-first topology** — the first question must immediately split into different paths; linear chains are rejected.
+- Every path must terminate at an **Offer node** (no dead ends).
+- `attributeKey` on each question is a strict contract — edge conditions reference these keys, and operators are validated against the node's `valueKind` (Text or Numeric).
+- Layout positions follow a left-to-right tree visualization with consistent spacing.
+- Duplicate edges (same source → target) are automatically deduplicated.
+
+### Service Architecture
+
+| Component | Responsibility |
+|---|---|
+| `ClaudeService` | HTTP client wrapping the Anthropic Messages API (single-turn, multi-turn, streaming) |
+| `StartGenerateFlowUseCase` | Creates a background job, returns job ID for polling |
+| `GenerateFlowUseCase` | Calls Claude, parses response JSON, orchestrates entity creation |
+| `GetGenerateFlowStatusUseCase` | Returns job status (Pending / Running / Done / Failed) |
+| `FlowGenerationJobStore` | In-memory singleton tracking active generation jobs |
+
+### Configuration
+
+Set the following in your `.env` or `appsettings.json` under the `Claude` section:
+
+| Variable | Default | Description |
+|---|---|---|
+| `ApiKey` | — | Anthropic API key (required) |
+| `Model` | `claude-sonnet-4-20250514` | Claude model ID |
+| `MaxTokens` | `1024` | Max response tokens |
 
 ---
 
@@ -96,6 +141,7 @@ A single step in the flow. Every node has a **type** that determines its behavio
 | `PositionY` | `float` | Canvas Y coordinate |
 | `CreatedAt` | `DateTime` | UTC creation timestamp |
 | `AnswerType` | `AnswerType?` | How the user answers — only valid on Question nodes |
+| `ValueKind` | `ValueKind?` | `Text` or `Numeric` — determines which operators are legal in edge conditions referencing this node's `AttributeKey` |
 | `SliderMin` | `decimal?` | Minimum slider value (Slider answer type only) |
 | `SliderMax` | `decimal?` | Maximum slider value (Slider answer type only) |
 | `Options` | `IReadOnlyCollection<Option>` | Answer choices (Question nodes only, not allowed for Slider) |
@@ -117,10 +163,11 @@ A single step in the flow. Every node has a **type** that determines its behavio
 | `Slider` | User drags a numeric slider between `SliderMin` and `SliderMax` | No — options are cleared/forbidden |
 
 **Validation rules:**
-- Question nodes **must** have a non-empty `AttributeKey`.
-- Slider questions **require** both `SliderMin` and `SliderMax` (min < max) and **cannot** have options.
-- SingleChoice/MultipleChoice **cannot** have slider bounds.
+- Question nodes **must** have a non-empty `AttributeKey` and a `ValueKind`.
+- Slider questions **require** `ValueKind = Numeric`, both `SliderMin` and `SliderMax` (min < max), and **cannot** have options.
+- SingleChoice/MultipleChoice **require** `ValueKind = Text`, **cannot** have slider bounds, and must have at least 2 options.
 - Only Question nodes can have options added.
+- Edge conditions referencing a node's `AttributeKey` must use operators compatible with its `ValueKind` (e.g., `gt`/`lt`/`between` only for Numeric).
 
 ---
 
@@ -240,6 +287,7 @@ Tracks a single user's journey through a flow.
 | `UtmCampaign` | `string` | UTM campaign name (max 200) |
 | `StartedAt` | `DateTime` | When session was created |
 | `CompletedAt` | `DateTime?` | When session was completed (null if still in progress) |
+| `UserNodePath` | `string?` | Ordered list of node IDs the user visited (serialized JSON) — enables path analytics and "go back" |
 
 #### Session Status
 
@@ -415,6 +463,8 @@ Works on both `InProgress` and `Completed` sessions. Finds or creates a `Session
 | | `/nodes/{nodeId}/options/reorder` | PUT | Reorder options |
 | **Offers** | `/offers` | GET, POST, PUT, DELETE | CRUD offers |
 | **Node-Offers** | `/nodes/{nodeId}/offers` | GET, POST, PUT, DELETE | Link/unlink offers to nodes |
+| **AI Generation** | `/flows/generate` | POST | Generate a full flow from a natural-language prompt (returns job ID) |
+| | `/flows/generate/status/{jobId}` | GET | Poll generation job status |
 | **Analytics** | `/analytics/sessions` | GET | Session stats |
 | | `/analytics/offers` | GET | Offer performance |
 | | `/analytics/drop-offs` | GET | Drop-off analysis |
@@ -458,3 +508,5 @@ heroku container:release web -a course-decider-betterme
 ## Environment Variables
 
 - `DATABASE_URL` — PostgreSQL connection string (auto-set by Heroku)
+- `Claude__ApiKey` — Anthropic API key for AI flow generation
+- `CORS_ORIGINS` — Comma-separated allowed origins (defaults to `http://localhost:3000,http://localhost:5173`)

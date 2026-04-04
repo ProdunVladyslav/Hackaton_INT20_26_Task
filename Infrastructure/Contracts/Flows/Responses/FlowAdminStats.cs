@@ -38,5 +38,25 @@ public sealed record FlowAdminStats(
     /// <summary>Total number of offer conversions (user clicked CTA).</summary>
     int TotalOfferConversions,
     /// <summary>Overall offer conversion rate for this flow (0–100, 2 dp).</summary>
-    double OfferConversionRate
+    double OfferConversionRate,
+
+    // ── Session duration (completed sessions only) ────────────────────────────
+    /// <summary>Mean time from session start to completion.</summary>
+    TimeSpan AvgSessionDuration,
+    /// <summary>Median time from session start to completion — robust against outliers.</summary>
+    TimeSpan MedianSessionDuration,
+    /// <summary>Shortest completed session duration.</summary>
+    TimeSpan MinSessionDuration,
+    /// <summary>Longest completed session duration.</summary>
+    TimeSpan MaxSessionDuration,
+
+    // ── Answer timing (all sessions) ──────────────────────────────────────────
+    /// <summary>Mean time a user spent before submitting any single answer.</summary>
+    TimeSpan AvgAnswerDuration,
+    /// <summary>Median answer duration — robust against outliers.</summary>
+    TimeSpan MedianAnswerDuration,
+    /// <summary>Fastest single answer recorded across all sessions.</summary>
+    TimeSpan MinAnswerDuration,
+    /// <summary>Slowest single answer recorded across all sessions.</summary>
+    TimeSpan MaxAnswerDuration
 );

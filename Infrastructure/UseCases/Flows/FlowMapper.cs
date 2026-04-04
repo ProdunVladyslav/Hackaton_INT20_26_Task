@@ -29,15 +29,17 @@ public static class FlowMapper
     /// <param name="stats">Optional flow-level admin stats; pass null for public endpoints.</param>
     public static FlowDetailResponse ToDetail(Flow flow, FlowAdminStats? stats = null) =>
         new(
-            Id          : flow.Id,
-            Name        : flow.Name,
-            Description : flow.Description,
-            IsPublished : flow.IsPublished,
-            EntryNodeId : flow.EntryNodeId,
-            CreatedAt   : flow.CreatedAt,
-            UpdatedAt   : flow.UpdatedAt,
-            Nodes       : flow.Nodes.Select(ToNodeDto).ToList(),
-            Edges       : flow.Edges.Select(ToEdgeDto).ToList(),
+            Id: flow.Id,
+            Name: flow.Name,
+            Description: flow.Description,
+            IsPublished: flow.IsPublished,
+            EntryNodeId: flow.EntryNodeId,
+            CreatedAt: flow.CreatedAt,
+            UpdatedAt: flow.UpdatedAt,
+            Nodes: flow.Nodes.Select(ToNodeDto).ToList(),
+            Edges: flow.Edges.Select(ToEdgeDto).ToList(),
+            AttributeKeys: [],
+            PathDistribution: [],
             Stats       : stats
         );
 
@@ -53,6 +55,7 @@ public static class FlowMapper
             PositionY    : node.PositionY,
             CreatedAt    : node.CreatedAt,
             AnswerType   : node.AnswerType?.ToString(),
+            ValueKind    : node.ValueKind?.ToString(),
             SliderMin    : node.SliderMin,
             SliderMax    : node.SliderMax,
             Options      : node.Options.Select(ToOptionDto).ToList(),

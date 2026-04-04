@@ -30,9 +30,9 @@ namespace Application.Seeders
             // ── Admin users ───────────────────────────────────────────────────
             var admins = new[]
             {
-            new { Email = "admin@example.com",  Password = "Admin123!" },
-            new { Email = "admin2@example.com", Password = "Admin123!" },
-        };
+                new { Email = "admin@example.com",  Password = "Admin123!" },
+                new { Email = "admin2@example.com", Password = "Admin123!" },
+            };
 
             foreach (var seed in admins)
             {

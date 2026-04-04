@@ -7,6 +7,12 @@ namespace Domain.Model.Survey
         Offer
     }
 
+    public enum ValueKind
+    {
+        Text,      // eq, neq, in
+        Numeric,   // eq, neq, in, gt, gte, lt, lte, between
+    }
+
     /// <summary>
     /// How a Question node collects input from the user.
     /// Only valid on Question nodes.
@@ -32,6 +38,7 @@ namespace Domain.Model.Survey
         public Guid FlowId { get; private set; }
         public NodeType Type { get; private set; }
         public string AttributeKey { get; private set; }
+        public ValueKind? ValueKind { get; private set; }
         public string Title { get; private set; }
         public string Description { get; private set; }
         public string MediaUrl { get; private set; }
@@ -118,7 +125,11 @@ namespace Domain.Model.Survey
         ///   • SingleChoice / MultipleChoice must not supply slider bounds.
         ///   • Pass null to clear the answer type (resets slider bounds too).
         /// </summary>
-        public void SetAnswerType(AnswerType? answerType, decimal? sliderMin = null, decimal? sliderMax = null)
+        public void SetAnswerType(
+            AnswerType? answerType,
+            decimal? sliderMin = null,
+            decimal? sliderMax = null,
+            ValueKind? valueKind = null)
         {
             if (answerType.HasValue && Type != NodeType.Question)
                 throw new InvalidOperationException("AnswerType can only be set on Question nodes.");
@@ -131,19 +142,34 @@ namespace Domain.Model.Survey
                 if (sliderMin >= sliderMax)
                     throw new ArgumentException("SliderMin must be less than SliderMax.");
 
-                // Wipe existing options when switching to Slider
+                if (valueKind == Survey.ValueKind.Text)
+                    throw new ArgumentException("Slider answer type cannot have Text ValueKind.");
+
                 _options.Clear();
+
+                AnswerType = answerType;
+                SliderMin = sliderMin;
+                SliderMax = sliderMax;
+                ValueKind = valueKind ?? Survey.ValueKind.Numeric;
             }
             else if (answerType.HasValue)
             {
-                // SingleChoice / MultipleChoice
                 if (sliderMin is not null || sliderMax is not null)
                     throw new ArgumentException("SliderMin and SliderMax are only valid for the Slider answer type.");
-            }
 
-            AnswerType = answerType;
-            SliderMin  = answerType == Survey.AnswerType.Slider ? sliderMin : null;
-            SliderMax  = answerType == Survey.AnswerType.Slider ? sliderMax : null;
+                AnswerType = answerType;
+                SliderMin = null;
+                SliderMax = null;
+                ValueKind = valueKind ?? Survey.ValueKind.Text;
+            }
+            else
+            {
+                // clearing
+                AnswerType = null;
+                SliderMin = null;
+                SliderMax = null;
+                ValueKind = null;
+            }
         }
 
         public void Move(float x, float y)

@@ -231,6 +231,9 @@ namespace Application.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<int?>("ValueKind")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("FlowId");
@@ -421,6 +424,9 @@ namespace Application.Migrations
                     b.Property<Guid>("SessionId")
                         .HasColumnType("uuid");
 
+                    b.Property<TimeSpan>("UserAnswerDuration")
+                        .HasColumnType("interval");
+
                     b.Property<string>("Value")
                         .IsRequired()
                         .HasMaxLength(4000)
@@ -457,6 +463,9 @@ namespace Application.Migrations
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
+
+                    b.Property<string>("UserNodePath")
+                        .HasColumnType("text");
 
                     b.Property<string>("UtmCampaign")
                         .IsRequired()
@@ -652,17 +661,21 @@ namespace Application.Migrations
 
             modelBuilder.Entity("Domain.Model.Survey.NodeOffer", b =>
                 {
-                    b.HasOne("Domain.Model.Survey.Node", null)
+                    b.HasOne("Domain.Model.Survey.Node", "Node")
                         .WithMany()
                         .HasForeignKey("NodeId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Domain.Model.Survey.Offer", null)
+                    b.HasOne("Domain.Model.Survey.Offer", "Offer")
                         .WithMany()
                         .HasForeignKey("OfferId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Node");
+
+                    b.Navigation("Offer");
                 });
 
             modelBuilder.Entity("Domain.Model.Survey.Option", b =>

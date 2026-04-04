@@ -18,4 +18,11 @@ public sealed record FlowResult<T>(
 
     public static FlowResult<T> NotFound(string message = "Not found.") =>
         new(false, ErrorMessage: message, StatusCode: 404);
+
+    public void EnsureSuccess()
+    {
+        if (!Success)
+            throw new InvalidOperationException(
+                $"Use case failed ({StatusCode}): {ErrorMessage}");
+    }
 }

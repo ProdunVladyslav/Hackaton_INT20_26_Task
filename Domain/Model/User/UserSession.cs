@@ -23,6 +23,7 @@ namespace Domain.Model.User
         public string UtmCampaign { get; private set; }
         public DateTime StartedAt { get; private set; }
         public DateTime? CompletedAt { get; private set; }
+        public string? UserNodePath { get; private set; }
 
         private UserSession() { }
 
@@ -44,6 +45,11 @@ namespace Domain.Model.User
         {
             if (Status != SessionStatus.InProgress)
                 throw new InvalidOperationException("Session is not active");
+
+            if (UserNodePath == null)
+                UserNodePath = $"{CurrentNodeId};{nodeId};";
+            else
+                UserNodePath += $"{nodeId};";
 
             CurrentNodeId = nodeId;
         }

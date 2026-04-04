@@ -5,14 +5,26 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+
 namespace Application.Repositories.Implementations
 {
-    public class EFUnitOfWork(AppDbContext context) : IUnitOfWork
+    public class EFUnitOfWork : IUnitOfWork
     {
-        public Task<int> SaveChangesAsync()
-            => context.SaveChangesAsync();
+        private readonly AppDbContext _context;
 
-        public Task<int> SaveChangesAsync(CancellationToken ct)
-            => context.SaveChangesAsync(ct);
+        public EFUnitOfWork(AppDbContext context)
+        {
+            _context = context;
+        }
+
+        public async Task<int> SaveChangesAsync()
+        {
+            return await _context.SaveChangesAsync();
+        }
+
+        public async Task<int> SaveChangesAsync(CancellationToken ct)
+        {
+            return await _context.SaveChangesAsync(ct);
+        }
     }
 }
