@@ -1,3 +1,6 @@
+# Course Decider (BetterMe Hackathon INT20-26)
+
+Survey/quiz engine backend that lets admins design dynamic question flows with branching logic, present targeted offers, and track analytics.
 ADMIN CREDS
 ```
 EMAIL = admin@example.com
@@ -6,9 +9,22 @@ PASSWORD = Admin123!
 
 DEPLOYED - [here](https://course-decider-betterme-a2fb7653487d.herokuapp.com/swagger/index.html)
 
-# Course Decider (BetterMe Hackathon INT20-26)
+FRONTEND REPO - [here](https://github.com/ProdunVladyslav/Hackaton_INT_20_26_Frontend)
 
-Survey/quiz engine backend that lets admins design dynamic question flows with branching logic, present targeted offers, and track analytics.
+## Local start instructions (via Docker)
+1. In root directory (where docker-compose.yml is located) run this:
+```
+docker compose up --build
+```
+2. Visit [local Swagger](http://localhost:8080/swagger/index.html)
+## Admin Flow
+https://github.com/user-attachments/assets/1948e358-88c4-425b-afd5-963338445980
+
+## User Flow
+https://github.com/user-attachments/assets/491d5340-3f30-4b3d-b274-ca7be1b48cc1
+
+## Full Demo
+https://github.com/user-attachments/assets/b324ab39-d578-4b10-a65f-d8ee50ce15da
 
 ## Tech Stack
 
