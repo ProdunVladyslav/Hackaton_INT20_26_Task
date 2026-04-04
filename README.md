@@ -9,6 +9,8 @@ PASSWORD = Admin123!
 
 DEPLOYED - [here](https://course-decider-betterme-a2fb7653487d.herokuapp.com/swagger/index.html)
 
+FRONTEND DEPLOY - [here](https://better-me-admin2-lzwt.vercel.app/)
+
 FRONTEND REPO - [here](https://github.com/ProdunVladyslav/Hackaton_INT_20_26_Frontend)
 
 ## Local start instructions (via Docker)
@@ -17,6 +19,11 @@ FRONTEND REPO - [here](https://github.com/ProdunVladyslav/Hackaton_INT_20_26_Fro
 docker compose up --build
 ```
 2. Visit [local Swagger](http://localhost:8080/swagger/index.html)
+
+## What changed
+- AI flow generation — explains that admins describe a quiz in plain text and Claude generates the full flow automatically (background job + polling).
+- Statistics & user path tracking — covers the analytics endpoints and the new UserNodePath field for observing user journeys.
+- DAG constructor & survey bug fixes — covers the edge condition, duplicate-edge, node validation, and routing fixes.
 ## Admin Flow
 https://github.com/user-attachments/assets/1948e358-88c4-425b-afd5-963338445980
 
