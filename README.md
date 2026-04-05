@@ -7,7 +7,7 @@ EMAIL = admin@example.com
 PASSWORD = Admin123!
 ```
 
-DEPLOYED - [here](https://course-decider-betterme-a2fb7653487d.herokuapp.com/swagger/index.html)
+DEPLOYED - [here](https://hackaton-task-b8310a8937f5.herokuapp.com/swagger/index.html)
 
 FRONTEND DEPLOY - [here](https://better-me-admin2-lzwt.vercel.app/)
 
