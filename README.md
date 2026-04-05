@@ -21,9 +21,11 @@ docker compose up --build
 2. Visit [local Swagger](http://localhost:8080/swagger/index.html)
 
 ## What changed
-- AI flow generation — explains that admins describe a quiz in plain text and Claude generates the full flow automatically (background job + polling).
-- Statistics & user path tracking — covers the analytics endpoints and the new UserNodePath field for observing user journeys.
-- DAG constructor & survey bug fixes — covers the edge condition, duplicate-edge, node validation, and routing fixes.
+- **AI flow generation** — admins now able to describe a quiz in plain text and Claude generates the full flow automatically (background job + polling).
+- **Statistics & user path tracking** — covers the analytics endpoints and the new UserNodePath field for observing user journeys.
+- **Parameters manual handling** - comparing to older version, where user could choose attribute only from dropdown list, now user can create their own. He just needs to write down its name(AttributeName) and determine its ValueType(Text/Numeric). Then it can be used as a conditions in edges with proper operators (which are available for specific ValueType). 
+- **Added OR comparison type between edge conditions** - now user can choose how to operate between different edge conditions using simple dropdown.
+- **DAG constructor & survey bug fixes** — covers the edge condition, duplicate-edge, node validation, and routing fixes.  
 ## Admin Flow
 https://github.com/user-attachments/assets/1948e358-88c4-425b-afd5-963338445980
 
