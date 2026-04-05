@@ -11,7 +11,7 @@ DEPLOYED - [here](https://hackaton-task-b8310a8937f5.herokuapp.com/swagger/index
 
 FRONTEND DEPLOY - [here](https://better-me-admin2-lzwt.vercel.app/login)
 
-FRONTEND REPO - [here](https://github.com/ProdunVladyslav/Hackaton_INT_20_26_Frontend)
+FRONTEND REPO - [here](https://github.com/IlyaKrasulia/betterMeAdmin2)
 
 ## Local start instructions (via Docker)
 1. In root directory (where docker-compose.yml is located) run this:
