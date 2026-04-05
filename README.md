@@ -9,7 +9,7 @@ PASSWORD = Admin123!
 
 DEPLOYED - [here](https://hackaton-task-b8310a8937f5.herokuapp.com/swagger/index.html)
 
-FRONTEND DEPLOY - [here](https://better-me-admin2-lzwt.vercel.app/)
+FRONTEND DEPLOY - [here](https://better-me-admin2-lzwt.vercel.app/login)
 
 FRONTEND REPO - [here](https://github.com/ProdunVladyslav/Hackaton_INT_20_26_Frontend)
 
