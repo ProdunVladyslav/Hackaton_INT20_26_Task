@@ -13,6 +13,9 @@ FRONTEND DEPLOY - [here](https://better-me-admin2-lzwt.vercel.app/login)
 
 FRONTEND REPO - [here](https://github.com/IlyaKrasulia/betterMeAdmin2)
 
+AI DEMO - [here](https://www.youtube.com/watch?v=cMJUmX57-AE)
+STATS DEMO - [here](https://www.youtube.com/watch?v=p3VSdWqglmk)
+
 ## Local start instructions (via Docker)
 1. In root directory (where docker-compose.yml is located) run this:
 ```
