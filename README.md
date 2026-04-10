@@ -1,4 +1,4 @@
-# Course Decider (BetterMe Hackathon INT20-26)
+# FlowForge AI (BetterMe Hackathon INT20-26)
 
 Survey/quiz engine backend that lets admins design dynamic question flows with branching logic, present targeted offers, and track analytics.
 ADMIN CREDS
