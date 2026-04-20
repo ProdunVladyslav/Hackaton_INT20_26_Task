@@ -1,8 +1,9 @@
 namespace Infrastructure.Contracts.Options.Requests;
 
 public sealed record UpdateOptionRequest(
-    string? Label,
-    string? Value,
-    int? DisplayOrder,
-    string? MediaUrl
+    string? Label = null,
+    string? Value = null,
+    int? DisplayOrder = null,
+    string? MediaUrl = null,
+    int? ScoreDelta = null
 );

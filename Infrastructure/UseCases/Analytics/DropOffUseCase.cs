@@ -1,9 +1,7 @@
-using Application;
-using Domain.Model.User;
+using Application.Contracts.Analytics;
+using Application.Repositories.Interfaces;
 using Infrastructure.Contracts.Analytics.Responses;
 using Infrastructure.Contracts.Flows.Responses;
-using Microsoft.EntityFrameworkCore;
-
 namespace Infrastructure.UseCases.Analytics;
 
 /// <summary>
@@ -14,46 +12,24 @@ namespace Infrastructure.UseCases.Analytics;
 /// - Count of sessions still on that node
 /// - Drop-off rate (% of total sessions)
 /// </summary>
-public sealed class DropOffUseCase
+public sealed class DropOffUseCase(
+    IUserSessionRepository userSessionRepository,
+    IUserProfileRepository userProfileRepository)
 {
-    private readonly AppDbContext _db;
-
-    public DropOffUseCase(AppDbContext db) => _db = db;
-
-    public async Task<FlowResult<DropOffResponse>> ExecuteAsync(CancellationToken ct = default)
+    public async Task<FlowResult<DropOffResponse>> ExecuteAsync(Guid applicationUserId, CancellationToken ct = default)
     {
-        var total = await _db.UserSessions.CountAsync(ct);
+        var profile = await userProfileRepository.FirstOrDefaultAsync(p => p.ApplicationUserId == applicationUserId, ct);
+        if (profile == null) 
+            return FlowResult<DropOffResponse>.NotFound("User profile not found.");
 
-        var dropoffs = await _db.UserSessions
-            .Where(s => s.Status == SessionStatus.Abandoned)
-            .Join(_db.Nodes, s => s.CurrentNodeId, n => n.Id, (s, n) => new { s, n })
-            .Join(_db.Flows, x => x.n.FlowId, f => f.Id, (x, f) => new { x.n, f })
-            .GroupBy(x => new
-            {
-                NodeId = x.n.Id,
-                NodeTitle = x.n.Title,
-                FlowId = x.f.Id,
-                FlowTitle = x.f.Name
-            })
-            .Select(g => new
-            {
-                g.Key.NodeId,
-                g.Key.NodeTitle,
-                g.Key.FlowId,
-                g.Key.FlowTitle,
-                Count = g.Count()
-            })
-            .OrderByDescending(x => x.Count)
-            .ToListAsync(ct);
+        var total = await userSessionRepository.CountByOwnerAsync(profile.Id, ct);
 
-        var items = dropoffs.Select(d => new DropOffItem(
-            d.NodeId,
-            d.NodeTitle,
-            d.FlowId,
-            d.FlowTitle,
-            d.Count,
-            total > 0 ? Math.Round((double)d.Count / total * 100, 2) : 0
-        )).ToList();
+        List<DropOffItem> items = await userSessionRepository.GetDropOffsByOwnerAsync(profile.Id, ct);
+
+        items = items.Select(d => d with
+        {
+            DropOffRate = total > 0 ? Math.Round((double)d.SessionCount / total * 100, 2) : 0
+        }).ToList();
 
         return FlowResult<DropOffResponse>.Ok(new DropOffResponse(items));
     }

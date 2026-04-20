@@ -5,6 +5,7 @@ using Infrastructure.UseCases.NodeOffers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
+using System.Security.Claims;
 
 namespace Hackaton_INT20_26_Task.Controllers;
 
@@ -16,7 +17,7 @@ namespace Hackaton_INT20_26_Task.Controllers;
 [Route("api/admin/nodes/{nodeId:guid}/offers")]
 [Authorize]
 [Produces("application/json")]
-[Tags("Admin — Node↔Offer")]
+[Tags("Admin — Node <-> Offer")]
 public sealed class NodeOffersController : ControllerBase
 {
     private readonly ListNodeOffersUseCase _listNodeOffers;
@@ -36,31 +37,28 @@ public sealed class NodeOffersController : ControllerBase
         _unlinkOffer = unlinkOffer;
     }
 
+    private bool TryGetUserId(out Guid userId)
+        => Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out userId);
+
     // ── GET /api/admin/nodes/{nodeId}/offers ──────────────────────────────────
 
     [HttpGet]
-    [SwaggerOperation(
-        Summary = "List node offers",
-        Description = "Returns all offers linked to a specific node.",
-        OperationId = "AdminNodeOffers_List")]
+    [SwaggerOperation(Summary = "List node offers", OperationId = "AdminNodeOffers_List")]
     [SwaggerResponse(200, "Node offer list.", typeof(List<NodeOfferResponse>))]
     [SwaggerResponse(401, "Not authenticated.")]
     [SwaggerResponse(404, "Node not found.")]
     public async Task<IActionResult> ListNodeOffers([FromRoute] Guid nodeId, CancellationToken ct)
     {
-        var result = await _listNodeOffers.ExecuteAsync(nodeId, ct);
+        if (!TryGetUserId(out var userId)) return Unauthorized();
+        var result = await _listNodeOffers.ExecuteAsync(nodeId, userId, ct);
         return ToActionResult(result);
     }
 
     // ── POST /api/admin/nodes/{nodeId}/offers ─────────────────────────────────
 
     [HttpPost]
-    [SwaggerOperation(
-        Summary = "Link offer to node",
-        Description = "Links an offer to a node. Offer and node must exist and must not already be linked.",
-        OperationId = "AdminNodeOffers_Link")]
+    [SwaggerOperation(Summary = "Link offer to node", OperationId = "AdminNodeOffers_Link")]
     [SwaggerResponse(201, "Offer linked.", typeof(NodeOfferResponse))]
-    [SwaggerResponse(400, "Validation error.")]
     [SwaggerResponse(401, "Not authenticated.")]
     [SwaggerResponse(404, "Node or offer not found.")]
     [SwaggerResponse(409, "Offer already linked to this node.")]
@@ -69,7 +67,8 @@ public sealed class NodeOffersController : ControllerBase
         [FromBody] LinkOfferRequest request,
         CancellationToken ct)
     {
-        var result = await _linkOffer.ExecuteAsync(nodeId, request, ct);
+        if (!TryGetUserId(out var userId)) return Unauthorized();
+        var result = await _linkOffer.ExecuteAsync(nodeId, userId, request, ct);
 
         if (!result.Success)
             return ToActionResult(result);
@@ -83,10 +82,7 @@ public sealed class NodeOffersController : ControllerBase
     // ── PUT /api/admin/nodes/{nodeId}/offers/{nodeOfferId} ────────────────────
 
     [HttpPut("{nodeOfferId:guid}")]
-    [SwaggerOperation(
-        Summary = "Update node offer",
-        Description = "Updates a node-offer link (e.g., primary flag).",
-        OperationId = "AdminNodeOffers_Update")]
+    [SwaggerOperation(Summary = "Update node offer", OperationId = "AdminNodeOffers_Update")]
     [SwaggerResponse(200, "Node offer updated.", typeof(NodeOfferResponse))]
     [SwaggerResponse(401, "Not authenticated.")]
     [SwaggerResponse(404, "NodeOffer not found.")]
@@ -96,17 +92,15 @@ public sealed class NodeOffersController : ControllerBase
         [FromBody] UpdateNodeOfferRequest request,
         CancellationToken ct)
     {
-        var result = await _updateNodeOffer.ExecuteAsync(nodeId, nodeOfferId, request, ct);
+        if (!TryGetUserId(out var userId)) return Unauthorized();
+        var result = await _updateNodeOffer.ExecuteAsync(nodeId, nodeOfferId, userId, request, ct);
         return ToActionResult(result);
     }
 
-    // ── DELETE /api/admin/nodes/{nodeId}/offers/{nodeOfferId} ──────────────────
+    // ── DELETE /api/admin/nodes/{nodeId}/offers/{nodeOfferId} ─────────────────
 
     [HttpDelete("{nodeOfferId:guid}")]
-    [SwaggerOperation(
-        Summary = "Unlink offer from node",
-        Description = "Removes the link between a node and an offer.",
-        OperationId = "AdminNodeOffers_Unlink")]
+    [SwaggerOperation(Summary = "Unlink offer from node", OperationId = "AdminNodeOffers_Unlink")]
     [SwaggerResponse(204, "Offer unlinked.")]
     [SwaggerResponse(401, "Not authenticated.")]
     [SwaggerResponse(404, "NodeOffer not found.")]
@@ -115,7 +109,8 @@ public sealed class NodeOffersController : ControllerBase
         [FromRoute] Guid nodeOfferId,
         CancellationToken ct)
     {
-        var result = await _unlinkOffer.ExecuteAsync(nodeId, nodeOfferId, ct);
+        if (!TryGetUserId(out var userId)) return Unauthorized();
+        var result = await _unlinkOffer.ExecuteAsync(nodeId, nodeOfferId, userId, ct);
 
         if (!result.Success)
             return ToActionResult(result);
@@ -135,7 +130,7 @@ public sealed class NodeOffersController : ControllerBase
             404 => NotFound(new { message = result.ErrorMessage }),
             409 => Conflict(new { message = result.ErrorMessage }),
             422 => UnprocessableEntity(new { message = result.ErrorMessage }),
-            _   => BadRequest(new { message = result.ErrorMessage })
+            _ => BadRequest(new { message = result.ErrorMessage })
         };
     }
 }

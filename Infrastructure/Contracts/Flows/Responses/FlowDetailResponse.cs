@@ -1,3 +1,5 @@
+using Domain.Model.Survey;
+
 namespace Infrastructure.Contracts.Flows.Responses;
 
 /// <summary>
@@ -36,6 +38,8 @@ public sealed record NodeDto(
     decimal?          SliderMax,
     List<OptionDto>   Options,
     List<NodeOfferDto> NodeOffers,
+    NodeRedirectDto? Redirect,
+    NodeLeadCaptureDto? LeadCapture,
     NodeStatsDto?     Stats
 );
 
@@ -49,15 +53,14 @@ public sealed record OfferDto(
     Guid Id,
     string Slug,
     string Name,
-    string Description,
-    string Duration,
-    string DigitalContent,
-    string PhysicalWellnessKitName,
-    string PhysicalWellnessKitItems,
-    decimal? Price,
-    string ImageUrl,
-    string CtaText,
-    string CtaUrl
+    string? Headline,
+    string? Body,
+    string? ImageUrl,
+    string? CalendarUrl,
+    string? CalendarProvider,
+    string? Tier,
+    string? CtaText,
+    string? CtaUrl
 );
 
 /// <summary>
@@ -96,11 +99,41 @@ public sealed record NodeStatsDto(
     TimeSpan AvgAnswerDuration
 );
 
+// NodeRedirectLinkDto.cs
+public sealed record NodeRedirectLinkDto(
+    Guid Id,
+    string Label,
+    string Url);
+
+// NodeRedirectDto.cs
+public sealed record NodeRedirectDto(
+    Guid Id,
+    string? RedirectUrl,
+    int? AutoRedirectAfterSeconds,
+    string Tier,
+    IReadOnlyList<NodeRedirectLinkDto> Links);
+
+// NodeLeadCaptureFieldDto.cs
+public sealed record NodeLeadCaptureFieldDto(
+    Guid Id,
+    string FieldType,
+    string AttributeKey,
+    bool IsRequired,
+    int DisplayOrder,
+    string Placeholder);
+
+// NodeLeadCaptureDto.cs
+public sealed record NodeLeadCaptureDto(
+    Guid Id,
+    bool IsRequired,
+    IReadOnlyList<NodeLeadCaptureFieldDto> Fields);
+
 public sealed record OptionDto(
     Guid Id,
     string Label,
     string Value,
     int DisplayOrder,
+    int? ScoreDelta,
     string? MediaUrl
 );
 

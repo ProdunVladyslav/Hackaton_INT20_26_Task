@@ -1,9 +1,7 @@
 ﻿using Infrastructure.Contracts.AIGeneration;
 using Infrastructure.Contracts.AIGeneration.Requests;
 using Infrastructure.Contracts.Edges.Requests;
-using Infrastructure.Contracts.Edges.Responses;
 using Infrastructure.Contracts.Flows.Requests;
-using Infrastructure.Contracts.Flows.Responses;
 using Infrastructure.Contracts.Nodes.Requests;
 using Infrastructure.Contracts.Options.Requests;
 using Infrastructure.Services.Implementations;
@@ -28,12 +26,12 @@ namespace Infrastructure.UseCases.AIGeneration
             PropertyNameCaseInsensitive = true
         };
 
-        public async Task<Guid> ExecuteAsync(GenerateFlowRequest request, CancellationToken ct = default)
+        public async Task<Guid> ExecuteAsync(
+            GenerateFlowRequest request,
+            Guid applicationUserId,
+            CancellationToken ct = default)
         {
-            // ── 1. Ask Claude ────────────────────────────────────────────────────────
             var raw = await claudeService.PromptAsync(request.UserPrompt, ct);
-
-            // ── 2. Strip markdown fences & parse ─────────────────────────────────────
             var json = StripMarkdownFences(raw);
 
             GeneratedFlowPlan plan;
@@ -48,53 +46,82 @@ namespace Infrastructure.UseCases.AIGeneration
                     $"Claude returned invalid or truncated JSON — try increasing MaxTokens. Details: {ex.Message}");
             }
 
-            // ── 3. Create flow ───────────────────────────────────────────────────────
-            FlowResult<FlowSummaryResponse> flowResult = await createFlow.ExecuteAsync(
-                new CreateFlowRequest(plan.Flow.Name, plan.Flow.Description), ct);
+            // ── 3. Create flow ────────────────────────────────────────────────
+            var flowResult = await createFlow.ExecuteAsync(
+                new CreateFlowRequest(plan.Flow.Name, plan.Flow.Description),
+                applicationUserId, ct);
 
             flowResult.EnsureSuccess();
             var flowId = flowResult.Data.Id;
 
-            // ── 4. Create all nodes (positions included) ─────────────────────────────
+            // ── 4. Create nodes ───────────────────────────────────────────────
             var nodeIdMap = new Dictionary<string, Guid>(plan.Nodes.Count);
 
             foreach (var n in plan.Nodes)
             {
-                var nodeResult = await createNode.ExecuteAsync(flowId,
+                var nodeResult = await createNode.ExecuteAsync(flowId, applicationUserId,
                     new CreateNodeRequest(
                         Type: n.Type,
                         Title: n.Title,
-                        AttributeKey: n.AttributeKey,
                         Description: n.Description,
                         MediaUrl: null,
                         PositionX: n.PositionX,
                         PositionY: n.PositionY,
+
+                        // Question
+                        AttributeKey: n.AttributeKey,
                         AnswerType: n.AnswerType,
                         ValueKind: n.ValueKind,
                         SliderMin: n.SliderMin,
                         SliderMax: n.SliderMax,
-                        Offer: n.Offer is null ? null : ToInlineOfferRequest(n.Offer)),
+
+                        // Offer
+                        Offer: n.Offer is null ? null : ToInlineOfferRequest(n.Offer),
+
+                        // LeadCapture
+                        IsRequired: n.IsRequired,
+                        Fields: n.Fields?
+                            .Select(f => new LeadCaptureFieldRequest(
+                                FieldType: f.FieldType,
+                                IsRequired: f.IsRequired,
+                                DisplayOrder: f.DisplayOrder,
+                                Placeholder: f.Placeholder))
+                            .ToList(),
+
+                        // Redirect
+                        Tier: n.Tier,
+                        RedirectUrl: n.RedirectUrl,
+                        AutoRedirectAfterSeconds: n.AutoRedirectAfterSeconds,
+                        Links: n.Links?
+                            .Select(l => new NodeRedirectLinkRequest(l.Label, l.Url))
+                            .ToList()),
                     ct);
 
                 nodeResult.EnsureSuccess();
                 nodeIdMap[n.TempId] = nodeResult.Data.Id;
             }
 
-            // ── 5. Create options ────────────────────────────────────────────────────
+            // ── 5. Create options ─────────────────────────────────────────────
             foreach (var n in plan.Nodes.Where(n => n.Options.Count > 0))
             {
                 var realNodeId = nodeIdMap[n.TempId];
 
                 foreach (var opt in n.Options.OrderBy(o => o.DisplayOrder))
                 {
-                    var optResult = await createOption.ExecuteAsync(realNodeId,
-                        new CreateOptionRequest(opt.Label, opt.Value, opt.DisplayOrder), ct);
+                    var optResult = await createOption.ExecuteAsync(realNodeId, applicationUserId,
+                        new CreateOptionRequest(
+                            Label: opt.Label,
+                            Value: opt.Value,
+                            DisplayOrder: opt.DisplayOrder,
+                            MediaUrl: null,
+                            ScoreDelta: opt.ScoreDelta),
+                        ct);
 
                     optResult.EnsureSuccess();
                 }
             }
 
-            // ── 6. Create edges ──────────────────────────────────────────────────────
+            // ── 6. Create edges ───────────────────────────────────────────────
             var seenEdgePairs = new HashSet<(Guid, Guid)>();
 
             foreach (var e in plan.Edges)
@@ -107,30 +134,24 @@ namespace Infrastructure.UseCases.AIGeneration
                     throw new InvalidOperationException(
                         $"Edge references unknown target tempId '{e.TargetTempId}'.");
 
-                // Client-side dedup — skip before even calling the API
-                var pair = (sourceId, targetId);
-                if (!seenEdgePairs.Add(pair))
-                {
-                    // Duplicate detected in the plan — skip silently
+                if (!seenEdgePairs.Add((sourceId, targetId)))
                     continue;
-                }
 
-                FlowResult<EdgeResponse> edgeResult = await createEdge.ExecuteAsync(flowId,
+                var edgeResult = await createEdge.ExecuteAsync(flowId, applicationUserId,
                     new CreateEdgeRequest(sourceId, targetId, e.Priority, e.ConditionsJson), ct);
 
-                // 409 = edge already exists — not fatal, skip and continue
                 if (!edgeResult.Success && edgeResult.StatusCode == 409)
                     continue;
 
                 edgeResult.EnsureSuccess();
             }
 
-            // ── 7. Set entry node ────────────────────────────────────────────────────
+            // ── 7. Set entry node ─────────────────────────────────────────────
             if (!nodeIdMap.TryGetValue(plan.EntryNodeTempId, out var entryId))
                 throw new InvalidOperationException(
                     $"Entry node tempId '{plan.EntryNodeTempId}' not found in node map.");
 
-            FlowResult<FlowSummaryResponse> entryResult = await setEntryNode.ExecuteAsync(flowId,
+            var entryResult = await setEntryNode.ExecuteAsync(flowId, applicationUserId,
                 new SetEntryNodeRequest(entryId), ct);
 
             entryResult.EnsureSuccess();
@@ -139,38 +160,30 @@ namespace Infrastructure.UseCases.AIGeneration
         }
 
         private static InlineOfferRequest ToInlineOfferRequest(GeneratedOfferSpec o) =>
-            new(
-                Slug: o.Slug,
+            new(Slug: o.Slug,
                 Name: o.Name,
-                Description: o.Description,
-                Duration: o.Duration,
-                DigitalContent: o.DigitalContent,
-                PhysicalWellnessKitName: o.PhysicalWellnessKitName,
-                PhysicalWellnessKitItems: o.PhysicalWellnessKitItems,
-                Price: o.Price,
+                Headline: o.Headline,
+                Body: o.Body,
                 ImageUrl: o.ImageUrl,
+                CalendarUrl: o.CalendarUrl,
                 CtaText: o.CtaText,
                 CtaUrl: o.CtaUrl,
+                Tier: o.Tier,
+                CalendarProvider: o.CalendarProvider,
                 IsPrimary: o.IsPrimary);
 
         private static string StripMarkdownFences(string raw)
         {
             var s = raw.Trim();
+            if (!s.StartsWith("```")) return s;
 
-            if (!s.StartsWith("```"))
-                return s;
-
-            // Remove opening fence (```json or just ```)
             var firstNewline = s.IndexOf('\n');
-            if (firstNewline < 0)
-                return s;
+            if (firstNewline < 0) return s;
 
             s = s[(firstNewline + 1)..];
 
-            // Remove closing fence
             var closingFence = s.LastIndexOf("```");
-            if (closingFence >= 0)
-                s = s[..closingFence];
+            if (closingFence >= 0) s = s[..closingFence];
 
             return s.Trim();
         }

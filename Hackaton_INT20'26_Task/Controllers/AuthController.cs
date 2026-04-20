@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Domain.Model.Auth;
 using Swashbuckle.AspNetCore.Annotations;
+using Application.Contracts.Auth;
 
 namespace Hackaton_INT20_26_Task.Controllers;
 
@@ -14,21 +15,12 @@ namespace Hackaton_INT20_26_Task.Controllers;
 [Route("api/[controller]")]
 [Produces("application/json")]
 [Tags("Auth")]
-public sealed class AuthController : ControllerBase
+public sealed class AuthController(
+    LoginUseCase _loginUseCase,
+    MeUseCase _meUseCase,
+    SignInManager<ApplicationUser> _signInManager,
+    SignUpUseCase _signUpUseCase) : ControllerBase
 {
-    private readonly LoginUseCase _loginUseCase;
-    private readonly MeUseCase _meUseCase;
-    private readonly SignInManager<ApplicationUser> _signInManager;
-
-    public AuthController(
-        LoginUseCase loginUseCase,
-        MeUseCase meUseCase,
-        SignInManager<ApplicationUser> signInManager)
-    {
-        _loginUseCase = loginUseCase;
-        _meUseCase = meUseCase;
-        _signInManager = signInManager;
-    }
 
     // POST /api/auth/login
     [HttpPost("login")]
@@ -55,6 +47,24 @@ public sealed class AuthController : ControllerBase
 
         // Cookie is already set by SignInManager.PasswordSignInAsync — just return the user.
         return Ok(result.User);
+    }
+
+    // POST /api/auth/signup
+    [HttpPost("signup")]
+    [AllowAnonymous]
+    [SwaggerOperation(
+        Summary = "Sign up",
+        Description = "Creates a new account with email and password. Sets the auth cookie on success.",
+        OperationId = "Auth_SignUp")]
+    [SwaggerResponse(200, "Account created.", typeof(LoginResponse))]
+    [SwaggerResponse(400, "Validation error (weak password, duplicate email, etc).")]
+    public async Task<IActionResult> SignUp([FromBody] SignUpRequest request)
+    {
+        var result = await _signUpUseCase.ExecuteAsync(request);
+
+        return result.Success
+            ? Ok(result.User)
+            : BadRequest(new { message = result.ErrorMessage });
     }
 
     // GET /api/auth/me

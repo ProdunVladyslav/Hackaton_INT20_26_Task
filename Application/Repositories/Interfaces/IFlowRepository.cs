@@ -15,7 +15,7 @@ namespace Application.Repositories.Interfaces
         /// Returns all flows ordered by creation date (newest first),
         /// without loading nodes/edges (for summary list endpoints).
         /// </summary>
-        Task<List<Flow>> GetAllOrderedAsync(CancellationToken ct = default);
+        Task<List<Flow>> GetAllOrderedAsync(Guid ownerProfileId, CancellationToken ct = default);
 
         /// <summary>
         /// Returns the first published flow (newest) with full DAG.
@@ -28,5 +28,7 @@ namespace Application.Repositories.Interfaces
         /// Used by public content delivery endpoints.
         /// </summary>
         Task<Flow?> GetPublishedFlowWithDagAsync(Guid flowId, CancellationToken ct = default);
+
+        Task<Flow?> GetFlowWithDagAsync(Guid flowId, Guid ownerProfileId, CancellationToken ct = default);
     }
 }

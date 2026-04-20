@@ -4,15 +4,8 @@ using Infrastructure.UseCases.Flows;
 
 namespace Infrastructure.UseCases.Content;
 
-public sealed class GetPublishedFlowByIdUseCase
+public sealed class GetPublishedFlowByIdUseCase(IFlowRepository _flowRepository)
 {
-    private readonly IFlowRepository _flowRepository;
-
-    public GetPublishedFlowByIdUseCase(IFlowRepository flowRepository)
-    {
-        _flowRepository = flowRepository;
-    }
-
     public async Task<FlowResult<FlowDetailResponse>> ExecuteAsync(Guid flowId, CancellationToken ct = default)
     {
         var flow = await _flowRepository.GetPublishedFlowWithDagAsync(flowId, ct);

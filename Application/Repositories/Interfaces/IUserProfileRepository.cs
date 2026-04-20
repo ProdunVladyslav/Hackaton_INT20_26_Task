@@ -1,14 +1,10 @@
-﻿using Domain.Model.AdminProfile;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using Application.Contracts.Auth;
+using Domain.Model.AdminProfile;
 
 namespace Application.Repositories.Interfaces
 {
     public interface IUserProfileRepository : IGenericRepository<UserProfile>
     {
-
+        Task<MeResponse?> GetMeAsync(Guid applicationUserId, CancellationToken ct = default);
     }
 }

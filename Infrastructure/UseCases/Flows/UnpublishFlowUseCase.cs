@@ -7,23 +7,21 @@ namespace Infrastructure.UseCases.Flows;
 /// Use case: unpublish a flow, hiding it from end-users.
 /// Does not delete data — the flow can be re-published later.
 /// </summary>
-public sealed class UnpublishFlowUseCase
+public sealed class UnpublishFlowUseCase(
+    IFlowRepository _flows,
+    IUserProfileRepository _userProfiles,
+    IUnitOfWork _uow)
 {
-    private readonly IFlowRepository _flows;
-    private readonly IUnitOfWork     _uow;
-
-    public UnpublishFlowUseCase(IFlowRepository flows, IUnitOfWork uow)
-    {
-        _flows = flows;
-        _uow   = uow;
-    }
-
     public async Task<FlowResult<FlowSummaryResponse>> ExecuteAsync(
         Guid flowId,
+        Guid applicationUserId,
         CancellationToken ct = default)
     {
-        var flow = await _flows.GetByIdAsync(flowId, ct);
+        var profile = await _userProfiles.FirstOrDefaultAsync(p => p.ApplicationUserId == applicationUserId, ct);
+        if (profile == null)
+            return FlowResult<FlowSummaryResponse>.NotFound("User profile not found.");
 
+        var flow = await _flows.FirstOrDefaultAsync(f => f.Id == flowId && f.OwnerId == profile.Id, ct);
         if (flow is null)
             return FlowResult<FlowSummaryResponse>.NotFound($"Flow {flowId} not found.");
 

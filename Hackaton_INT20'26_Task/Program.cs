@@ -106,6 +106,7 @@ builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepositor
 builder.Services.AddScoped<IUnitOfWork, EFUnitOfWork>();
 builder.Services.AddHostedService<SessionAbandonmentService>();
 builder.Services.AddScoped<INodeRepository, NodeRepository>();
+builder.Services.AddScoped<ILeadRepository, LeadRepository>();
 builder.Services.AddScoped<IEdgeRepository, EdgeRepository>();
 builder.Services.AddScoped<IFlowRepository, FlowRepository>();
 builder.Services.AddScoped<INodeOfferRepository, NodeOfferRepository>();
@@ -114,6 +115,8 @@ builder.Services.AddScoped<IOptionRepository, OptionRepository>();
 builder.Services.AddScoped<ISessionOfferRepository, SessionOfferRepository>();
 builder.Services.AddScoped<IUserAnswerRepository, UserAnswerRepository>();
 builder.Services.AddScoped<IUserProfileRepository, UserProfileRepository>();
+builder.Services.AddScoped<INodeRedirectLinkRepository, NodeRedirectLinkRepository>();
+builder.Services.AddScoped<INodeLeadCaptureFieldRepository, NodeLeadCaptureFieldRepository>();
 builder.Services.AddScoped<IUserSessionRepository, UserSessionRepository>();
 
 

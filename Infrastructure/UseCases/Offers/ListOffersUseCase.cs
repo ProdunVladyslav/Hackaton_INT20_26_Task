@@ -1,37 +1,30 @@
 using Application.Repositories.Interfaces;
+using Domain.Model.Survey;
 using Infrastructure.Contracts.Flows.Responses;
 using Infrastructure.Contracts.Offers.Responses;
 
 namespace Infrastructure.UseCases.Offers;
 
-public sealed class ListOffersUseCase
+public sealed class ListOffersUseCase(
+    IOfferRepository _offerRepository,
+    IUserProfileRepository _userProfiles)
 {
-    private readonly IOfferRepository _offerRepository;
-
-    public ListOffersUseCase(IOfferRepository offerRepository)
+    public async Task<FlowResult<List<OfferResponse>>> ExecuteAsync(
+        Guid applicationUserId,
+        CancellationToken ct = default)
     {
-        _offerRepository = offerRepository;
+        var profile = await _userProfiles.FirstOrDefaultAsync(
+            p => p.ApplicationUserId == applicationUserId, ct);
+        if (profile is null)
+            return FlowResult<List<OfferResponse>>.NotFound("User profile not found.");
+
+        var offers = await _offerRepository.GetAllOrderedByOwnerAsync(profile.Id, ct);
+
+        return FlowResult<List<OfferResponse>>.Ok(
+            offers.Select(ToResponse).ToList());
     }
 
-    public async Task<FlowResult<List<OfferResponse>>> ExecuteAsync(CancellationToken ct = default)
-    {
-        var offers = await _offerRepository.GetAllOrderedAsync(ct);
-
-        var responses = offers.Select(o => new OfferResponse(
-            Id: o.Id,
-            Slug: o.Slug,
-            Name: o.Name,
-            Description: o.Description,
-            Duration: o.Duration,
-            DigitalContent: o.DigitalContent,
-            PhysicalWellnessKitName: o.PhysicalWellnessKitName,
-            PhysicalWellnessKitItems: o.PhysicalWellnessKitItems,
-            Price: o.Price,
-            ImageUrl: o.ImageUrl,
-            CtaText: o.CtaText,
-            CtaUrl: o.CtaUrl
-        )).ToList();
-
-        return FlowResult<List<OfferResponse>>.Ok(responses);
-    }
+    private static OfferResponse ToResponse(Offer o) =>
+        new(o.Id, o.Slug, o.Name, o.Headline, o.Body,
+            o.ImageUrl, o.CalendarUrl, o.CtaText, o.CtaUrl);
 }

@@ -8,33 +8,37 @@ namespace Infrastructure.UseCases.Flows;
 /// Use case: update the name and/or description of an existing flow.
 /// Partial update — only fields present in the request are applied.
 /// </summary>
-public sealed class UpdateFlowUseCase
+public sealed class UpdateFlowUseCase(
+    IFlowRepository _flows,
+    IUserProfileRepository _userProfiles,
+    IUnitOfWork _uow)
 {
-    private readonly IFlowRepository _flows;
-    private readonly IUnitOfWork     _uow;
-
-    public UpdateFlowUseCase(IFlowRepository flows, IUnitOfWork uow)
-    {
-        _flows = flows;
-        _uow   = uow;
-    }
-
     public async Task<FlowResult<FlowSummaryResponse>> ExecuteAsync(
-        Guid              flowId,
+        Guid flowId,
+        Guid applicationUserId,
         UpdateFlowRequest request,
         CancellationToken ct = default)
     {
-        var flow = await _flows.GetByIdAsync(flowId, ct);
+        var profile = await _userProfiles.FirstOrDefaultAsync(p => p.ApplicationUserId == applicationUserId, ct);
+        if (profile == null)
+            return FlowResult<FlowSummaryResponse>.NotFound("User profile not found.");
 
+        var flow = await _flows.FirstOrDefaultAsync(f => f.Id == flowId && f.OwnerId == profile.Id, ct);
         if (flow is null)
             return FlowResult<FlowSummaryResponse>.NotFound($"Flow {flowId} not found.");
 
-        // Apply only the fields provided in the request (partial update)
-        if (request.Name is not null)
-            flow.SetName(request.Name);
+        try
+        {
+            if (request.Name is not null)
+                flow.SetName(request.Name);
 
-        if (request.Description is not null)
-            flow.SetDescription(request.Description);
+            if (request.Description is not null)
+                flow.SetDescription(request.Description);
+        }
+        catch (ArgumentException ex)
+        {
+            return FlowResult<FlowSummaryResponse>.Fail(ex.Message, statusCode: 400);
+        }
 
         _flows.Update(flow);
         await _uow.SaveChangesAsync();

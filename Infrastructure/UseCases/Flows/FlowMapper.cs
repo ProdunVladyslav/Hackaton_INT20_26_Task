@@ -45,22 +45,24 @@ public static class FlowMapper
 
     private static NodeDto ToNodeDto(Node node) =>
         new(
-            Id           : node.Id,
-            Type         : node.Type.ToString(),
-            AttributeKey : node.AttributeKey,
-            Title        : node.Title,
-            Description  : node.Description,
-            MediaUrl     : node.MediaUrl,
-            PositionX    : node.PositionX,
-            PositionY    : node.PositionY,
-            CreatedAt    : node.CreatedAt,
-            AnswerType   : node.AnswerType?.ToString(),
-            ValueKind    : node.ValueKind?.ToString(),
-            SliderMin    : node.SliderMin,
-            SliderMax    : node.SliderMax,
-            Options      : node.Options.Select(ToOptionDto).ToList(),
-            NodeOffers   : new List<NodeOfferDto>(), // enriched separately in use case
-            Stats        : null                       // enriched separately in use case
+            Id: node.Id,
+            Type: node.Type.ToString(),
+            AttributeKey: node.AttributeKey,
+            Title: node.Title,
+            Description: node.Description,
+            MediaUrl: node.MediaUrl,
+            PositionX: node.PositionX,
+            PositionY: node.PositionY,
+            CreatedAt: node.CreatedAt,
+            AnswerType: node.AnswerType?.ToString(),
+            ValueKind: node.ValueKind?.ToString(),
+            SliderMin: node.SliderMin,
+            SliderMax: node.SliderMax,
+            Options: node.Options.Select(ToOptionDto).ToList(),
+            NodeOffers: new List<NodeOfferDto>(), // enriched separately in use case
+            Stats: null, // enriched separately in use case
+            Redirect : null, // enriched separately in use case
+            LeadCapture : null // enriched separately in use case
         );
 
     private static OptionDto ToOptionDto(Option opt) =>
@@ -68,6 +70,7 @@ public static class FlowMapper
             Id           : opt.Id,
             Label        : opt.Label,
             Value        : opt.Value,
+            ScoreDelta   : opt.ScoreDelta,
             DisplayOrder : opt.DisplayOrder,
             MediaUrl     : opt.MediaUrl
         );

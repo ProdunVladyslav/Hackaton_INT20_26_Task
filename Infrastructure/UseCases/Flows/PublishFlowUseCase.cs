@@ -8,23 +8,21 @@ namespace Infrastructure.UseCases.Flows;
 /// A flow can only be published when it has a designated entry node.
 /// Domain model enforces this invariant.
 /// </summary>
-public sealed class PublishFlowUseCase
+public sealed class PublishFlowUseCase(
+    IFlowRepository _flows,
+    IUserProfileRepository _userProfiles,
+    IUnitOfWork _uow)
 {
-    private readonly IFlowRepository _flows;
-    private readonly IUnitOfWork     _uow;
-
-    public PublishFlowUseCase(IFlowRepository flows, IUnitOfWork uow)
-    {
-        _flows = flows;
-        _uow   = uow;
-    }
-
     public async Task<FlowResult<FlowSummaryResponse>> ExecuteAsync(
         Guid flowId,
+        Guid applicationUserId,
         CancellationToken ct = default)
     {
-        var flow = await _flows.GetByIdAsync(flowId, ct);
+        var profile = await _userProfiles.FirstOrDefaultAsync(p => p.ApplicationUserId == applicationUserId, ct);
+        if (profile == null)
+            return FlowResult<FlowSummaryResponse>.NotFound("User profile not found.");
 
+        var flow = await _flows.FirstOrDefaultAsync(f => f.Id == flowId && f.OwnerId == profile.Id, ct);
         if (flow is null)
             return FlowResult<FlowSummaryResponse>.NotFound($"Flow {flowId} not found.");
 
@@ -33,7 +31,6 @@ public sealed class PublishFlowUseCase
 
         try
         {
-            // Domain enforces: cannot publish without an entry node.
             flow.Publish();
         }
         catch (InvalidOperationException ex)

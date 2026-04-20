@@ -5,6 +5,7 @@ using Infrastructure.UseCases.Nodes;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
+using System.Security.Claims;
 
 namespace Hackaton_INT20_26_Task.Controllers;
 
@@ -17,43 +18,31 @@ namespace Hackaton_INT20_26_Task.Controllers;
 [Authorize]
 [Produces("application/json")]
 [Tags("Admin — Nodes")]
-public sealed class NodesController : ControllerBase
+public sealed class NodesController(
+    CreateNodeUseCase _createNode,
+    UpdateNodeUseCase _updateNode,
+    MoveNodeUseCase _moveNode,
+    DeleteNodeUseCase _deleteNode) : ControllerBase
 {
-    private readonly CreateNodeUseCase _createNode;
-    private readonly UpdateNodeUseCase _updateNode;
-    private readonly MoveNodeUseCase _moveNode;
-    private readonly DeleteNodeUseCase _deleteNode;
-
-    public NodesController(
-        CreateNodeUseCase createNode,
-        UpdateNodeUseCase updateNode,
-        MoveNodeUseCase moveNode,
-        DeleteNodeUseCase deleteNode)
-    {
-        _createNode = createNode;
-        _updateNode = updateNode;
-        _moveNode = moveNode;
-        _deleteNode = deleteNode;
-    }
+    private bool TryGetUserId(out Guid userId)
+        => Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out userId);
 
     // ── POST /api/admin/flows/{flowId}/nodes ──────────────────────────────
 
     [HttpPost]
-    [SwaggerOperation(
-        Summary = "Create node",
-        Description = "Creates a new node in the flow. Type must be one of: Question, InfoPage, Offer.",
-        OperationId = "AdminNodes_Create")]
+    [SwaggerOperation(Summary = "Create node", OperationId = "AdminNodes_Create")]
     [SwaggerResponse(201, "Node created.", typeof(NodeResponse))]
-    [SwaggerResponse(400, "Validation error (invalid type or missing title).")]
+    [SwaggerResponse(400, "Validation error.")]
     [SwaggerResponse(401, "Not authenticated.")]
     [SwaggerResponse(404, "Flow not found.")]
-    [SwaggerResponse(422, "Unprocessable entity (e.g., Question node without attribute key).")]
+    [SwaggerResponse(422, "Unprocessable entity.")]
     public async Task<IActionResult> CreateNode(
         [FromRoute] Guid flowId,
         [FromBody] CreateNodeRequest request,
         CancellationToken ct)
     {
-        var result = await _createNode.ExecuteAsync(flowId, request, ct);
+        if (!TryGetUserId(out var userId)) return Unauthorized();
+        var result = await _createNode.ExecuteAsync(flowId, userId, request, ct);
 
         if (!result.Success)
             return ToActionResult(result);
@@ -64,10 +53,7 @@ public sealed class NodesController : ControllerBase
     // ── PUT /api/admin/flows/{flowId}/nodes/{nodeId} ──────────────────────
 
     [HttpPut("{nodeId:guid}")]
-    [SwaggerOperation(
-        Summary = "Update node",
-        Description = "Updates a node's title, attributeKey, description, and/or mediaUrl. Only provided fields are changed.",
-        OperationId = "AdminNodes_Update")]
+    [SwaggerOperation(Summary = "Update node", OperationId = "AdminNodes_Update")]
     [SwaggerResponse(200, "Updated node.", typeof(NodeResponse))]
     [SwaggerResponse(400, "Validation error.")]
     [SwaggerResponse(401, "Not authenticated.")]
@@ -79,17 +65,15 @@ public sealed class NodesController : ControllerBase
         [FromBody] UpdateNodeRequest request,
         CancellationToken ct)
     {
-        var result = await _updateNode.ExecuteAsync(flowId, nodeId, request, ct);
+        if (!TryGetUserId(out var userId)) return Unauthorized();
+        var result = await _updateNode.ExecuteAsync(flowId, nodeId, userId, request, ct);
         return ToActionResult(result);
     }
 
     // ── PUT /api/admin/flows/{flowId}/nodes/{nodeId}/position ─────────────
 
     [HttpPut("{nodeId:guid}/position")]
-    [SwaggerOperation(
-        Summary = "Move node",
-        Description = "Updates the x,y position of a node on the canvas.",
-        OperationId = "AdminNodes_Move")]
+    [SwaggerOperation(Summary = "Move node", OperationId = "AdminNodes_Move")]
     [SwaggerResponse(200, "Updated node position.", typeof(NodeResponse))]
     [SwaggerResponse(401, "Not authenticated.")]
     [SwaggerResponse(404, "Node or flow not found.")]
@@ -99,17 +83,15 @@ public sealed class NodesController : ControllerBase
         [FromBody] MoveNodeRequest request,
         CancellationToken ct)
     {
-        var result = await _moveNode.ExecuteAsync(flowId, nodeId, request, ct);
+        if (!TryGetUserId(out var userId)) return Unauthorized();
+        var result = await _moveNode.ExecuteAsync(flowId, nodeId, userId, request, ct);
         return ToActionResult(result);
     }
 
     // ── DELETE /api/admin/flows/{flowId}/nodes/{nodeId} ───────────────────
 
     [HttpDelete("{nodeId:guid}")]
-    [SwaggerOperation(
-        Summary = "Delete node",
-        Description = "Permanently deletes a node and all its options. If the node is the flow's entry point, the flow is unpublished.",
-        OperationId = "AdminNodes_Delete")]
+    [SwaggerOperation(Summary = "Delete node", OperationId = "AdminNodes_Delete")]
     [SwaggerResponse(204, "Node deleted.")]
     [SwaggerResponse(401, "Not authenticated.")]
     [SwaggerResponse(404, "Node or flow not found.")]
@@ -118,7 +100,8 @@ public sealed class NodesController : ControllerBase
         [FromRoute] Guid nodeId,
         CancellationToken ct)
     {
-        var result = await _deleteNode.ExecuteAsync(flowId, nodeId, ct);
+        if (!TryGetUserId(out var userId)) return Unauthorized();
+        var result = await _deleteNode.ExecuteAsync(flowId, nodeId, userId, ct);
 
         if (!result.Success)
             return ToActionResult(result);
@@ -126,7 +109,7 @@ public sealed class NodesController : ControllerBase
         return NoContent();
     }
 
-    // ── Helpers ──────────────────────────────────────────────────────────
+    // ── Helpers ───────────────────────────────────────────────────────────
 
     private IActionResult ToActionResult<T>(FlowResult<T> result)
     {
@@ -138,7 +121,7 @@ public sealed class NodesController : ControllerBase
             404 => NotFound(new { message = result.ErrorMessage }),
             409 => Conflict(new { message = result.ErrorMessage }),
             422 => UnprocessableEntity(new { message = result.ErrorMessage }),
-            _   => BadRequest(new { message = result.ErrorMessage })
+            _ => BadRequest(new { message = result.ErrorMessage })
         };
     }
 }

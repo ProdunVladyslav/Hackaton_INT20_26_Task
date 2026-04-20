@@ -15,19 +15,10 @@ namespace Hackaton_INT20_26_Task.Controllers;
 [AllowAnonymous]
 [Produces("application/json")]
 [Tags("Content Delivery")]
-public sealed class ContentController : ControllerBase
+public sealed class ContentController(
+    GetPublishedFlowUseCase _getPublishedFlow,
+    GetPublishedFlowByIdUseCase _getPublishedFlowById) : ControllerBase
 {
-    private readonly GetPublishedFlowUseCase _getPublishedFlow;
-    private readonly GetPublishedFlowByIdUseCase _getPublishedFlowById;
-
-    public ContentController(
-        GetPublishedFlowUseCase getPublishedFlow,
-        GetPublishedFlowByIdUseCase getPublishedFlowById)
-    {
-        _getPublishedFlow = getPublishedFlow;
-        _getPublishedFlowById = getPublishedFlowById;
-    }
-
     // ── GET /api/content/flow ─────────────────────────────────────────────────
 
     [HttpGet("flow")]

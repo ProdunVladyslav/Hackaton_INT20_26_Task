@@ -10,28 +10,35 @@ namespace Infrastructure.UseCases.Options;
 /// Use case: reorder options for a node.
 /// Updates the DisplayOrder for each option in the request.
 /// </summary>
-public sealed class ReorderOptionsUseCase
+public sealed class ReorderOptionsUseCase(
+    IOptionRepository _options,
+    INodeRepository _nodes,
+    IFlowRepository _flows,
+    IUserProfileRepository _userProfiles,
+    IUnitOfWork _uow)
 {
-    private readonly IOptionRepository _options;
-    private readonly IUnitOfWork _uow;
-
-    public ReorderOptionsUseCase(IOptionRepository options, IUnitOfWork uow)
-    {
-        _options = options;
-        _uow = uow;
-    }
-
     public async Task<FlowResult<List<OptionResponse>>> ExecuteAsync(
         Guid nodeId,
+        Guid applicationUserId,
         ReorderOptionsRequest request,
         CancellationToken ct = default)
     {
-        // Load all options for the node
+        var profile = await _userProfiles.FirstOrDefaultAsync(p => p.ApplicationUserId == applicationUserId, ct);
+        if (profile == null)
+            return FlowResult<List<OptionResponse>>.NotFound("User profile not found.");
+
+        var node = await _nodes.GetByIdAsync(nodeId, ct);
+        if (node == null)
+            return FlowResult<List<OptionResponse>>.NotFound("Node not found.");
+
+        var flow = await _flows.FirstOrDefaultAsync(f => f.Id == node.FlowId && f.OwnerId == profile.Id, ct);
+        if (flow == null)
+            return FlowResult<List<OptionResponse>>.NotFound("Node not found.");
+
         var optionsList = await _options.GetOptionsByNodeIdAsync(nodeId, ct);
 
         try
         {
-            // Update display order for each option
             foreach (var item in request.Items)
             {
                 var option = optionsList.FirstOrDefault(o => o.Id == item.OptionId);
@@ -42,13 +49,10 @@ public sealed class ReorderOptionsUseCase
                 }
             }
 
-            await _uow.SaveChangesAsync();
+            await _uow.SaveChangesAsync(ct);
 
-            // Reload options sorted by DisplayOrder
             var reorderedOptions = await _options.GetOptionsByNodeIdAsync(nodeId, ct);
-            var responses = reorderedOptions.Select(ToResponse).ToList();
-
-            return FlowResult<List<OptionResponse>>.Ok(responses);
+            return FlowResult<List<OptionResponse>>.Ok(reorderedOptions.Select(ToResponse).ToList());
         }
         catch (ArgumentException ex)
         {
@@ -57,11 +61,6 @@ public sealed class ReorderOptionsUseCase
     }
 
     private static OptionResponse ToResponse(Option option) =>
-        new(
-            option.Id,
-            option.NodeId,
-            option.Label,
-            option.Value,
-            option.DisplayOrder,
-            option.MediaUrl);
+        new(option.Id, option.NodeId, option.Label, option.Value,
+            option.DisplayOrder, option.MediaUrl, option.ScoreDelta);
 }

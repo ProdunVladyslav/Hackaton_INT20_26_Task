@@ -1,8 +1,10 @@
 using Application.Repositories.Interfaces;
+using Domain;
 using Domain.Model.Survey;
+using Domain.Services;
+using Infrastructure.Contracts.Flows.Responses;
 using Infrastructure.Contracts.Nodes.Requests;
 using Infrastructure.Contracts.Nodes.Responses;
-using Infrastructure.Contracts.Flows.Responses;
 using Infrastructure.Contracts.Offers.Responses;
 
 namespace Infrastructure.UseCases.Nodes;
@@ -12,123 +14,113 @@ namespace Infrastructure.UseCases.Nodes;
 /// When type is "Offer" and an inline Offer object is provided, also creates the offer
 /// and links it to the node in a single transaction.
 /// </summary>
-public sealed class CreateNodeUseCase
+public sealed class CreateNodeUseCase(
+    IFlowRepository _flows,
+    INodeRepository _nodes,
+    IOfferRepository _offers,
+    INodeOfferRepository _nodeOffers,
+    IUserProfileRepository _userProfiles,
+    NodeFactory _factory,
+    IUnitOfWork _uow)
 {
-    private readonly IFlowRepository _flows;
-    private readonly INodeRepository _nodes;
-    private readonly IOfferRepository _offers;
-    private readonly INodeOfferRepository _nodeOffers;
-    private readonly IUnitOfWork _uow;
-
-    public CreateNodeUseCase(
-        IFlowRepository flows,
-        INodeRepository nodes,
-        IOfferRepository offers,
-        INodeOfferRepository nodeOffers,
-        IUnitOfWork uow)
-    {
-        _flows = flows;
-        _nodes = nodes;
-        _offers = offers;
-        _nodeOffers = nodeOffers;
-        _uow = uow;
-    }
-
     public async Task<FlowResult<NodeResponse>> ExecuteAsync(
         Guid flowId,
+        Guid applicationUserId,
         CreateNodeRequest request,
         CancellationToken ct = default)
     {
-        // Validate flow exists
-        var flow = await _flows.GetByIdAsync(flowId, ct);
-        if (flow == null)
+        // ── 1. Auth + ownership ───────────────────────────────────────────────
+        var profile = await _userProfiles.FirstOrDefaultAsync(
+            p => p.ApplicationUserId == applicationUserId, ct);
+        if (profile is null)
+            return FlowResult<NodeResponse>.NotFound("User profile not found.");
+
+        var flow = await _flows.FirstOrDefaultAsync(
+            f => f.Id == flowId && f.OwnerId == profile.Id, ct);
+        if (flow is null)
             return FlowResult<NodeResponse>.NotFound("Flow not found.");
 
-        // Parse NodeType enum
+        var existingNodes = await _nodes.GetByFlowAsync(flowId, ct);
+
+        // ── 2. Parse type ─────────────────────────────────────────────────────
         if (!Enum.TryParse<NodeType>(request.Type, ignoreCase: true, out var nodeType))
             return FlowResult<NodeResponse>.Fail(
-                $"Invalid node type '{request.Type}'. Must be one of: {string.Join(", ", Enum.GetNames(typeof(NodeType)))}",
-                statusCode: 400);
+                $"Invalid node type '{request.Type}'.", 400);
 
-        // ── Question-specific required fields ────────────────────────────────────
-        if (nodeType == NodeType.Question)
-        {
-            if (string.IsNullOrWhiteSpace(request.AttributeKey))
-                return FlowResult<NodeResponse>.Fail(
-                    "Question nodes require 'AttributeKey'.",
-                    statusCode: 400);
-
-            if (string.IsNullOrWhiteSpace(request.AnswerType))
-                return FlowResult<NodeResponse>.Fail(
-                    "Question nodes require 'AnswerType'.",
-                    statusCode: 400);
-
-            if (string.IsNullOrWhiteSpace(request.ValueKind))
-                return FlowResult<NodeResponse>.Fail(
-                    "Question nodes require 'ValueKind'.",
-                    statusCode: 400);
-        }
-
-        // Inline offer only makes sense for Offer nodes
-        if (request.Offer != null && nodeType != NodeType.Offer)
-            return FlowResult<NodeResponse>.Fail(
-                "Inline offer can only be provided for nodes of type 'Offer'.",
-                statusCode: 400);
-
-        // ── Parse Question enums (only when Question) ─────────────────────────────
-        AnswerType? answerType = null;
-        ValueKind? valueKind = null;
-
-        if (nodeType == NodeType.Question)
-        {
-            if (!Enum.TryParse<AnswerType>(request.AnswerType, ignoreCase: true, out var parsedAnswerType))
-                return FlowResult<NodeResponse>.Fail(
-                    $"Invalid answer type '{request.AnswerType}'. Must be one of: {string.Join(", ", Enum.GetNames(typeof(AnswerType)))}",
-                    statusCode: 400);
-
-            if (!Enum.TryParse<ValueKind>(request.ValueKind, ignoreCase: true, out var parsedValueKind))
-                return FlowResult<NodeResponse>.Fail(
-                    $"Invalid value kind '{request.ValueKind}'. Must be one of: {string.Join(", ", Enum.GetNames(typeof(ValueKind)))}",
-                    statusCode: 400);
-
-            // Guard conflicting ValueKind for same AttributeKey across the flow
-            var existingNode = await _nodes.FirstOrDefaultAsync(
-                n => n.FlowId == flowId && n.AttributeKey == request.AttributeKey, ct);
-
-            if (existingNode is not null && existingNode.ValueKind != parsedValueKind)
-                return FlowResult<NodeResponse>.Fail(
-                    $"AttributeKey '{request.AttributeKey}' is already used with ValueKind " +
-                    $"'{existingNode.ValueKind}'. All nodes sharing an AttributeKey must have the same ValueKind.",
-                    statusCode: 409);
-
-            answerType = parsedAnswerType;
-            valueKind = parsedValueKind;
-        }
-
+        // ── 3. Factory creates + validates ────────────────────────────────────
         try
         {
-            var node = Node.Create(
-                flowId,
-                nodeType,
-                request.Title,
-                request.AttributeKey ?? "",
-                request.PositionX,
-                request.PositionY);
+            var fieldDefinitions = request.Fields?
+                .Select(f => new LeadCaptureFieldDefinition(
+                    Enum.Parse<LeadCaptureFieldType>(f.FieldType, ignoreCase: true),
+                    f.IsRequired,
+                    f.DisplayOrder,
+                    f.Placeholder))
+                ?? [];
 
-            if (!string.IsNullOrWhiteSpace(request.Description))
-                node.SetDescription(request.Description);
+            var linkDefinitions = request.Links?
+                .Select(l => new NodeRedirectLinkDefinition(l.Label, l.Url))
+                ?? [];
 
-            if (!string.IsNullOrWhiteSpace(request.MediaUrl))
-                node.SetMedia(request.MediaUrl);
+            Node node = nodeType switch
+            {
+                NodeType.Question => _factory.CreateQuestion(
+                    flowId,
+                    existingNodes,
+                    request.Title,
+                    request.AttributeKey
+                        ?? throw new DomainException("Question nodes require AttributeKey."),
+                    Enum.Parse<AnswerType>(request.AnswerType
+                        ?? throw new DomainException("Question nodes require AnswerType."),
+                        ignoreCase: true),
+                    Enum.Parse<ValueKind>(request.ValueKind
+                        ?? throw new DomainException("Question nodes require ValueKind."),
+                        ignoreCase: true),
+                    request.PositionX,
+                    request.PositionY,
+                    request.Description,
+                    request.MediaUrl,
+                    request.SliderMin,
+                    request.SliderMax),
 
-            if (answerType.HasValue)
-                node.SetAnswerType(answerType.Value, request.SliderMin, request.SliderMax, valueKind);
+                NodeType.InfoPage => _factory.CreateInfoPage(
+                    flowId, request.Title,
+                    request.PositionX, request.PositionY,
+                    request.Description, request.MediaUrl),
+
+                NodeType.LeadCapture => _factory.CreateLeadCapture(
+                    flowId, request.Title,
+                    request.PositionX, request.PositionY,
+                    request.IsRequired ?? true,
+                    fieldDefinitions,
+                    request.Description, request.MediaUrl),
+
+                NodeType.Offer => _factory.CreateOffer(
+                    flowId, request.Title,
+                    request.PositionX, request.PositionY,
+                    request.Description, request.MediaUrl),
+
+                NodeType.Redirect => _factory.CreateRedirect(
+                    flowId, 
+                    request.Title,
+                    Enum.Parse<QualificationTier>(request.Tier
+                        ?? throw new DomainException("Redirect nodes require a Tier."),
+                        ignoreCase: true),
+                    request.PositionX, 
+                    request.PositionY,
+                    request.RedirectUrl,
+                    request.AutoRedirectAfterSeconds,
+                    linkDefinitions,
+                    request.Description, request.MediaUrl),
+
+                _ => throw new DomainException($"Unknown node type: {nodeType}")
+            };
 
             await _nodes.AddAsync(node, ct);
 
-            // ── Inline offer creation ─────────────────────────────────────────────
+            // ── 4. Inline offer (Offer nodes only) ───────────────────────────────
             Offer? linkedOffer = null;
-            if (request.Offer is { } offerReq)
+            if (request.Offer is { } offerReq && nodeType == NodeType.Offer)
             {
                 var offerName = offerReq.Name ?? request.Title;
                 var slug = !string.IsNullOrWhiteSpace(offerReq.Slug)
@@ -138,21 +130,33 @@ public sealed class CreateNodeUseCase
                 if (await _offers.SlugExistsAsync(slug, null, ct))
                     slug = $"{slug}-{Guid.NewGuid().ToString("N")[..8]}";
 
-                var offer = Offer.Create(slug, offerName);
+                var offer = Offer.Create(slug, offerName, profile.Id);
 
-                if (offerReq.Description is not null) offer.SetDescription(offerReq.Description);
-                if (offerReq.Duration is not null) offer.SetDuration(offerReq.Duration);
-                if (offerReq.DigitalContent is not null) offer.SetDigitalContent(offerReq.DigitalContent);
-                if (offerReq.PhysicalWellnessKitName is not null) offer.SetPhysicalWellnessKitName(offerReq.PhysicalWellnessKitName);
-                if (offerReq.PhysicalWellnessKitItems is not null) offer.SetPhysicalWellnessKitItems(offerReq.PhysicalWellnessKitItems);
-                if (offerReq.Price.HasValue) offer.SetPrice(offerReq.Price.Value);
+                if (offerReq.Headline is not null) offer.SetHeadline(offerReq.Headline);
+                if (offerReq.Body is not null) offer.SetBody(offerReq.Body);
                 if (offerReq.ImageUrl is not null) offer.SetImageUrl(offerReq.ImageUrl);
-                offer.SetCta(offerReq.CtaText ?? "", offerReq.CtaUrl ?? "");
+                if (offerReq.CalendarUrl is not null) offer.SetCalendarUrl(offerReq.CalendarUrl);
+
+                var ctaUrl = offerReq.CtaUrl ?? offerReq.CalendarUrl ?? "";
+                offer.SetCta(offerReq.CtaText ?? "Learn More", ctaUrl);
 
                 await _offers.AddAsync(offer, ct);
                 await _uow.SaveChangesAsync(ct);
 
                 var nodeOffer = NodeOffer.Create(node.Id, offer.Id, offerReq.IsPrimary);
+
+                if (offerReq.Tier is not null && Enum.TryParse<QualificationTier>(offerReq.Tier, ignoreCase: true, out var tier))
+                {
+                    nodeOffer.SetTier(tier);
+                }
+                else
+                {
+                    nodeOffer.SetTier(QualificationTier.Warm); // Default tier
+                }
+
+                if (offerReq.CalendarProvider is not null && Enum.TryParse<CalendarProvider>(offerReq.CalendarProvider, ignoreCase: true, out var calendarProvider))
+                    nodeOffer.SetCalendarProvider(calendarProvider);
+
                 await _nodeOffers.AddAsync(nodeOffer, ct);
 
                 linkedOffer = offer;
@@ -162,13 +166,13 @@ public sealed class CreateNodeUseCase
 
             return FlowResult<NodeResponse>.Ok(ToResponse(node, linkedOffer));
         }
+        catch (DomainException ex)
+        {
+            return FlowResult<NodeResponse>.Fail(ex.Message, 422);
+        }
         catch (ArgumentException ex)
         {
-            return FlowResult<NodeResponse>.Fail(ex.Message, statusCode: 400);
-        }
-        catch (InvalidOperationException ex)
-        {
-            return FlowResult<NodeResponse>.Fail(ex.Message, statusCode: 422);
+            return FlowResult<NodeResponse>.Fail(ex.Message, 400);
         }
     }
 
@@ -177,32 +181,15 @@ public sealed class CreateNodeUseCase
             .Replace(name.ToLowerInvariant().Trim(), @"[^a-z0-9]+", "-")
             .Trim('-');
 
-    private static NodeResponse ToResponse(Node node, Offer? linkedOffer = null) =>
-        new(
-            node.Id,
-            node.FlowId,
-            node.Type.ToString(),
-            node.AttributeKey,
-            node.Title,
-            node.Description,
-            node.MediaUrl,
-            node.PositionX,
-            node.PositionY,
-            node.CreatedAt,
-            node.AnswerType?.ToString(),
-            node.SliderMin,
-            node.SliderMax,
-            linkedOffer is null ? null : new OfferResponse(
-                linkedOffer.Id,
-                linkedOffer.Slug,
-                linkedOffer.Name,
-                linkedOffer.Description,
-                linkedOffer.Duration,
-                linkedOffer.DigitalContent,
-                linkedOffer.PhysicalWellnessKitName,
-                linkedOffer.PhysicalWellnessKitItems,
-                linkedOffer.Price,
-                linkedOffer.ImageUrl,
-                linkedOffer.CtaText,
-                linkedOffer.CtaUrl));
+    private static NodeResponse ToResponse(Node node, Offer? linkedOffer = null) => new(
+        node.Id, node.FlowId, node.Type.ToString(),
+        node.AttributeKey, node.Title, node.Description,
+        node.MediaUrl, node.PositionX, node.PositionY,
+        node.CreatedAt, node.AnswerType?.ToString(),
+        node.SliderMin, node.SliderMax,
+        linkedOffer is null ? null : new OfferResponse(
+            linkedOffer.Id, linkedOffer.Slug, linkedOffer.Name,
+            linkedOffer.Headline, linkedOffer.Body,
+            linkedOffer.ImageUrl, linkedOffer.CalendarUrl,
+            linkedOffer.CtaText, linkedOffer.CtaUrl));
 }

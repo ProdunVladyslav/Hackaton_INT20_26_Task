@@ -22,12 +22,11 @@ namespace Application.Repositories.Implementations
         }
 
         /// <inheritdoc/>
-        public async Task<List<Flow>> GetAllOrderedAsync(CancellationToken ct = default)
-        {
-            return await _context.Flows
+        public async Task<List<Flow>> GetAllOrderedAsync(Guid ownerProfileId, CancellationToken ct = default)
+            => await _context.Flows
+                .Where(f => f.OwnerId == ownerProfileId)
                 .OrderByDescending(f => f.CreatedAt)
                 .ToListAsync(ct);
-        }
 
         /// <inheritdoc/>
         public async Task<Flow?> GetFirstPublishedWithDagAsync(CancellationToken ct = default)
@@ -50,5 +49,19 @@ namespace Application.Repositories.Implementations
                 .AsSplitQuery()
                 .FirstOrDefaultAsync(f => f.Id == flowId && f.IsPublished, ct);
         }
+
+        public async Task<Flow?> GetFlowWithDagAsync(Guid flowId, Guid ownerProfileId, CancellationToken ct = default)
+            => await _context.Flows
+                .Include(f => f.Nodes)
+                    .ThenInclude(n => n.Options)
+                .Include(f => f.Nodes)
+                    .ThenInclude(n => n.Redirect)
+                        .ThenInclude(r => r.Links)
+                .Include(f => f.Nodes)
+                    .ThenInclude(n => n.LeadCapture)
+                        .ThenInclude(lc => lc.Fields)
+                .Include(f => f.Edges)
+                .AsSplitQuery()
+                .FirstOrDefaultAsync(f => f.Id == flowId && f.OwnerId == ownerProfileId, ct);
     }
 }

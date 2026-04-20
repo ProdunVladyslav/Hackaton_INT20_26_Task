@@ -13,7 +13,7 @@ namespace Infrastructure.UseCases.AIGeneration
         FlowGenerationJobStore jobStore,
         IServiceScopeFactory scopeFactory)
     {
-        public Guid Execute(GenerateFlowRequest request)
+        public Guid Execute(GenerateFlowRequest request, Guid applicationUserId)
         {
             var job = jobStore.Create();
             job.Status = JobStatus.Running;
@@ -22,11 +22,10 @@ namespace Infrastructure.UseCases.AIGeneration
             {
                 try
                 {
-                    // GenerateFlowUseCase has scoped dependencies — run in its own scope
                     await using var scope = scopeFactory.CreateAsyncScope();
                     var useCase = scope.ServiceProvider.GetRequiredService<GenerateFlowUseCase>();
 
-                    var flowId = await useCase.ExecuteAsync(request, CancellationToken.None);
+                    var flowId = await useCase.ExecuteAsync(request, applicationUserId, CancellationToken.None);
                     job.FlowId = flowId;
                     job.Status = JobStatus.Done;
                 }

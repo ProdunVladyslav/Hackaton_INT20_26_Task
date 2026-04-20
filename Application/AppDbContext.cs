@@ -47,6 +47,13 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
     public DbSet<Option>        Options       => Set<Option>();
     public DbSet<Offer>         Offers        => Set<Offer>();
     public DbSet<NodeOffer>     NodeOffers    => Set<NodeOffer>();
+    public DbSet<NodeLeadCapture> NodeLeadCaptures => Set<NodeLeadCapture>();
+    public DbSet<NodeLeadCaptureField> NodeLeadCaptureFields => Set<NodeLeadCaptureField>();
+    public DbSet<NodeRedirect> NodeRedirects => Set<NodeRedirect>();
+    public DbSet<NodeRedirectLink> NodeRedirectLinks => Set<NodeRedirectLink>();
+
+    // ── Leads ─────────────────────────────────────────────────────────────────
+    public DbSet<Lead> Leads => Set<Lead>();
 
     // ── User activity ─────────────────────────────────────────────────────────
     public DbSet<UserSession>   UserSessions  => Set<UserSession>();
@@ -92,6 +99,11 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
                 .HasForeignKey<UserProfile>(p => p.ApplicationUserId)
                 .IsRequired()
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasMany(p => p.Flows)
+              .WithOne(f => f.Owner)
+              .HasForeignKey(f => f.OwnerId)
+              .OnDelete(DeleteBehavior.Cascade);
         });
 
         // =====================================================================
@@ -137,6 +149,9 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
                 .HasForeignKey(e => e.FlowId)
                 .IsRequired()
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.Property(f => f.OwnerId)
+                .IsRequired();
 
             // Tell EF Core to materialise rows into the private backing fields.
             entity.Navigation(f => f.Nodes).UsePropertyAccessMode(PropertyAccessMode.Field);
@@ -193,6 +208,120 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
                 .OnDelete(DeleteBehavior.Cascade);
 
             entity.Navigation(n => n.Options).UsePropertyAccessMode(PropertyAccessMode.Field);
+        });
+
+        // ── NodeLeadCapture ───────────────────────────────────────────────────────
+        // 1:1 with Node. Only exists when Node.Type == LeadCapture.
+        // Cascade: removing the node removes its lead capture config.
+        builder.Entity<NodeLeadCapture>(entity =>
+        {
+            entity.ToTable("NodeLeadCaptures");
+            entity.HasKey(nlc => nlc.Id);
+
+            entity.Property(nlc => nlc.IsRequired)
+                .HasDefaultValue(true);
+
+            // 1:1 with Node
+            entity.HasOne<Node>()
+                .WithOne(n => n.LeadCapture)
+                .HasForeignKey<NodeLeadCapture>(nlc => nlc.NodeId)
+                .IsRequired()
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // NodeLeadCapture → Fields (1:N)
+            entity.HasMany(nlc => nlc.Fields)
+                .WithOne()
+                .HasForeignKey(f => f.NodeLeadCaptureId)
+                .IsRequired()
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.Navigation(nlc => nlc.Fields)
+                .UsePropertyAccessMode(PropertyAccessMode.Field);
+        });
+
+        // ── NodeLeadCaptureField ──────────────────────────────────────────────────
+        // Each field the builder toggled on for a LeadCapture node.
+        builder.Entity<NodeLeadCaptureField>(entity =>
+        {
+            entity.ToTable("NodeLeadCaptureFields");
+            entity.HasKey(f => f.Id);
+
+            entity.Property(f => f.FieldType)
+                .HasConversion<string>()
+                .IsRequired()
+                .HasMaxLength(50);
+
+            entity.Property(f => f.IsRequired)
+                .HasDefaultValue(false);
+
+            entity.Property(f => f.DisplayOrder)
+                .HasDefaultValue(0);
+
+            entity.Property(f => f.Placeholder)
+                .HasMaxLength(200);
+
+            // AttributeKey is computed — not mapped to a column.
+            entity.Ignore(f => f.AttributeKey);
+
+            // One field type can only appear once per NodeLeadCapture.
+            entity.HasIndex(f => new { f.NodeLeadCaptureId, f.FieldType })
+                .IsUnique();
+
+            entity.HasIndex(f => new { f.NodeLeadCaptureId, f.DisplayOrder });
+        });
+
+        // ── NodeRedirect ──────────────────────────────────────────────────────────
+        builder.Entity<NodeRedirect>(entity =>
+        {
+            entity.ToTable("NodeRedirects");
+            entity.HasKey(nr => nr.Id);
+
+            entity.Property(nr => nr.RedirectUrl)
+                .HasMaxLength(1000);
+
+            entity.Property(nr => nr.AutoRedirectAfterSeconds);
+
+            entity.Property(nr => nr.Tier)
+                .HasConversion<string>()
+                .IsRequired()
+                .HasMaxLength(50);
+
+            // 1:1 with Node — inverse navigation wired explicitly
+            entity.HasOne<Node>()
+                .WithOne(n => n.Redirect)
+                .HasForeignKey<NodeRedirect>(nr => nr.NodeId)
+                .IsRequired()
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // NodeRedirect → Links (1:N)
+            entity.HasMany(nr => nr.Links)
+                .WithOne()
+                .HasForeignKey(l => l.NodeRedirectId)
+                .IsRequired()
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.Navigation(nr => nr.Links)
+                .UsePropertyAccessMode(PropertyAccessMode.Field);
+        });
+
+        // ── NodeRedirectLink ──────────────────────────────────────────────────────
+        builder.Entity<NodeRedirectLink>(entity =>
+        {
+            entity.ToTable("NodeRedirectLinks");
+            entity.HasKey(l => l.Id);
+
+            entity.Property(l => l.Label)
+                .IsRequired()
+                .HasMaxLength(200);
+
+            entity.Property(l => l.Url)
+                .IsRequired()
+                .HasMaxLength(1000);
+
+            entity.Property(l => l.DisplayOrder)
+                .HasDefaultValue(0);
+
+            entity.HasIndex(l => new { l.NodeRedirectId, l.DisplayOrder });
         });
 
         // ── Edge ──────────────────────────────────────────────────────────────
@@ -260,58 +389,57 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
         // =====================================================================
 
         // ── Offer ─────────────────────────────────────────────────────────────
-        // Standalone aggregate — products/services presented at offer nodes.
-        // Not owned by Flow; reusable across multiple nodes and sessions.
+        // Standalone aggregate — booking/CTA screen shown to qualified leads.
+        // Not owned by Flow; reusable across multiple nodes.
         builder.Entity<Offer>(entity =>
         {
             entity.ToTable("Offers");
             entity.HasKey(o => o.Id);
 
-            // Slug is the public identifier (URL-safe, human-readable).
+            // Slug is the public URL-safe identifier.
             entity.Property(o => o.Slug)
                 .IsRequired()
                 .HasMaxLength(200);
+            entity.HasIndex(o => o.Slug).IsUnique();
 
-            // Enforce slug uniqueness at the DB level.
-            entity.HasIndex(o => o.Slug)
-                .IsUnique();
-
+            // Name is internal — shown in the builder, not to the lead.
             entity.Property(o => o.Name)
                 .IsRequired()
                 .HasMaxLength(300);
 
-            entity.Property(o => o.Description)
+            // Lead-facing content. Headline supports {{token}} substitution.
+            entity.Property(o => o.Headline)
+                .HasMaxLength(500);
+
+            entity.Property(o => o.Body)
                 .HasMaxLength(4000);
-
-            entity.Property(o => o.Duration)
-                .HasMaxLength(200);
-
-            entity.Property(o => o.DigitalContent)
-                .HasMaxLength(2000);
-
-            entity.Property(o => o.PhysicalWellnessKitName)
-                .HasMaxLength(300);
-
-            entity.Property(o => o.PhysicalWellnessKitItems)
-                .HasMaxLength(4000);
-
-            // Price: 18 significant digits, 2 decimal places. Nullable = free tier.
-            entity.Property(o => o.Price)
-                .HasColumnType("numeric(18,2)");
 
             entity.Property(o => o.ImageUrl)
                 .HasMaxLength(1000);
 
+            // Call to action
             entity.Property(o => o.CtaText)
                 .HasMaxLength(300);
 
             entity.Property(o => o.CtaUrl)
                 .HasMaxLength(1000);
+
+            // Calendar booking — raw link, provider enum lives on NodeOffer.
+            entity.Property(o => o.CalendarUrl)
+                .HasMaxLength(1000);
+
+            entity.Property(o => o.OwnerId).IsRequired();
+
+            entity.HasOne<UserProfile>()
+                .WithMany(p => p.Offers)
+                .HasForeignKey(o => o.OwnerId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         // ── NodeOffer ─────────────────────────────────────────────────────────
         // Explicit many-to-many join between Node and Offer.
-        // IsPrimary flags the "recommended" offer when multiple are shown.
+        // Carries qualification context for this specific node→offer link:
+        // tier, calendar provider, and assigned sales rep.
         builder.Entity<NodeOffer>(entity =>
         {
             entity.ToTable("NodeOffers");
@@ -320,28 +448,52 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
             entity.Property(no => no.IsPrimary)
                 .HasDefaultValue(false);
 
-            // NodeOffer → Node (M:1)
-            // Cascade: removing a node removes all its offer links.
+            // Qualification tier for this path — defaults to Hot since
+            // Offer nodes are always qualified paths.
+            entity.Property(no => no.Tier)
+                .HasConversion<string>()
+                .IsRequired()
+                .HasMaxLength(50)
+                .HasDefaultValue(QualificationTier.Hot);
+
+            // Which calendar provider to use when rendering CtaUrl.
+            // Null = plain URL redirect, no embed.
+            entity.Property(no => no.CalendarProvider)
+                .HasConversion<string>()
+                .HasMaxLength(50);
+
+            // Which sales rep gets notified when this offer is reached.
+            // Null = notify flow owner.
+            entity.Property(no => no.AssignedOwnerId);
+
+            // NodeOffer → Node (M:1, cascade)
+            // Removing a node removes all its offer links.
             entity.HasOne(no => no.Node)
                 .WithMany()
                 .HasForeignKey(no => no.NodeId)
                 .IsRequired()
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // NodeOffer → Offer (M:1)
-            // Restrict: cannot delete an Offer while it is still linked to a node.
-            // Callers must unlink first (remove all NodeOffers for the offer).
+            // NodeOffer → Offer (M:1, cascade)
             entity.HasOne(no => no.Offer)
                 .WithMany()
                 .HasForeignKey(no => no.OfferId)
                 .IsRequired()
                 .OnDelete(DeleteBehavior.Cascade);
 
+            // NodeOffer → AssignedOwner UserProfile (M:1, optional)
+            // SetNull: if the user profile is deleted, clear the assignment
+            // rather than blocking deletion or orphaning the record.
+            entity.HasOne<UserProfile>()
+                .WithMany()
+                .HasForeignKey(no => no.AssignedOwnerId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
+
             // One offer can only appear once per node.
             entity.HasIndex(no => new { no.NodeId, no.OfferId })
                 .IsUnique();
         });
-
         // =====================================================================
         //  USER ACTIVITY
         // =====================================================================
@@ -383,7 +535,6 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
             entity.HasOne<Node>()
                 .WithMany()
                 .HasForeignKey(s => s.CurrentNodeId)
-                .IsRequired()
                 .OnDelete(DeleteBehavior.Restrict);
 
             // Index for retrieving all sessions for a given flow (analytics queries).
@@ -414,7 +565,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
             // UserAnswer → UserSession (M:1, cascade)
             // Deleting a session erases all its recorded answers.
             entity.HasOne<UserSession>()
-                .WithMany()
+                .WithMany(s => s.Answers)
                 .HasForeignKey(a => a.SessionId)
                 .IsRequired()
                 .OnDelete(DeleteBehavior.Cascade);
@@ -469,6 +620,119 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
 
             // Index for retrieving all offers shown in a session.
             entity.HasIndex(so => so.SessionId);
+
+            entity.Property(so => so.ConvertedAt);
+        });
+
+        // ── Lead ──────────────────────────────────────────────────────────────────
+        // Created on session complete when a LeadCapture node was traversed.
+        // One lead per session maximum — enforced by unique index on SessionId.
+        // Restrict on Session, Flow, and TerminalNode — leads are business records,
+        // never silently dropped.
+        builder.Entity<Lead>(entity =>
+        {
+            entity.ToTable("Leads");
+            entity.HasKey(l => l.Id);
+
+            // Identity
+            entity.Property(l => l.Email)
+                .IsRequired()
+                .HasMaxLength(300);
+
+            entity.Property(l => l.FullName)
+                .HasMaxLength(300);
+
+            entity.Property(l => l.Phone)
+                .HasMaxLength(50);
+
+            entity.Property(l => l.CompanyName)
+                .HasMaxLength(300);
+
+            entity.Property(l => l.JobTitle)
+                .HasMaxLength(200);
+
+            entity.Property(l => l.CompanySize)
+                .HasMaxLength(100);
+
+            entity.Property(l => l.Website)
+                .HasMaxLength(500);
+
+            // Qualification
+            entity.Property(l => l.Score)
+                .HasDefaultValue(0);
+
+            entity.Property(l => l.Tier)
+                .HasConversion<string>()
+                .IsRequired()
+                .HasMaxLength(50);
+
+            entity.Property(l => l.TerminalNodeType)
+                .HasConversion<string>()
+                .IsRequired()
+                .HasMaxLength(50);
+
+            // Sales rep workflow
+            entity.Property(l => l.Status)
+                .HasConversion<string>()
+                .IsRequired()
+                .HasMaxLength(50)
+                .HasDefaultValue(LeadStatus.New);
+
+            entity.Property(l => l.Notes)
+                .HasMaxLength(4000);
+
+            entity.Property(l => l.TimeToCompleteSeconds)
+                .HasDefaultValue(0);
+
+            entity.Property(l => l.CreatedAt)
+                .IsRequired();
+
+            // Lead → UserSession (1:1, restrict)
+            // One lead per completed session. Session records must outlive leads.
+            entity.HasOne<UserSession>()
+                .WithOne()
+                .HasForeignKey<Lead>(l => l.SessionId)
+                .IsRequired()
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Lead → Flow (M:1, restrict)
+            // Keep leads when flow is soft-deleted or archived.
+            entity.HasOne<Flow>()
+                .WithMany()
+                .HasForeignKey(l => l.FlowId)
+                .IsRequired()
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Lead → TerminalNode (M:1, restrict)
+            // Prevent deleting a node while lead records still reference it.
+            entity.HasOne<Node>()
+                .WithMany()
+                .HasForeignKey(l => l.TerminalNodeId)
+                .IsRequired()
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Lead → AssignedTo UserProfile (M:1, optional, set null)
+            // If the assigned rep's profile is deleted, clear the assignment
+            // rather than blocking deletion or orphaning the lead.
+            entity.HasOne<UserProfile>()
+                .WithMany()
+                .HasForeignKey(l => l.AssignedToId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // Queries: all leads for a flow (leads table view)
+            entity.HasIndex(l => l.FlowId);
+
+            // Queries: filter by tier and status (most common dashboard filters)
+            entity.HasIndex(l => new { l.FlowId, l.Tier });
+            entity.HasIndex(l => new { l.FlowId, l.Status });
+
+            // Queries: dedup check — find existing lead by email within a flow
+            entity.HasIndex(l => new { l.FlowId, l.Email });
+
+            // One lead per session — enforced at DB level
+            entity.HasIndex(l => l.SessionId)
+                .IsUnique();
         });
     }
 }

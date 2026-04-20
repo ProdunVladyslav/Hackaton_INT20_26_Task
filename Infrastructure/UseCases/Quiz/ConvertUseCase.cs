@@ -15,42 +15,36 @@ namespace Infrastructure.UseCases.Quiz;
 /// 3. Find or create SessionOffer record
 /// 4. Mark as converted
 /// </summary>
-public sealed class ConvertUseCase
+public sealed class ConvertUseCase(
+    IUserSessionRepository _sessions,
+    IOfferRepository _offers,
+    ISessionOfferRepository _sessionOffers,
+    IUnitOfWork _uow)
 {
-    private readonly IUserSessionRepository _sessions;
-    private readonly IOfferRepository _offers;
-    private readonly ISessionOfferRepository _sessionOffers;
-    private readonly IUnitOfWork _uow;
-
-    public ConvertUseCase(
-        IUserSessionRepository sessions,
-        IOfferRepository offers,
-        ISessionOfferRepository sessionOffers,
-        IUnitOfWork uow)
+    public async Task<FlowResult<bool>> ExecuteAsync(
+    Guid sessionId, ConvertRequest request, CancellationToken ct = default)
     {
-        _sessions = sessions;
-        _offers = offers;
-        _sessionOffers = sessionOffers;
-        _uow = uow;
-    }
-
-    public async Task<FlowResult<bool>> ExecuteAsync(Guid sessionId, ConvertRequest request, CancellationToken ct = default)
-    {
-        // Load session (can be InProgress or Completed)
         var session = await _sessions.GetByIdAsync(sessionId, ct);
         if (session is null)
             return FlowResult<bool>.NotFound("Session not found.");
 
-        // Verify offer exists
+        // Session must be completed — conversion only valid at terminal node
+        if (session.Status != SessionStatus.Completed)
+            return FlowResult<bool>.Fail("Cannot convert an in-progress session.", 422);
+
         var offer = await _offers.GetByIdAsync(request.OfferId, ct);
         if (offer is null)
             return FlowResult<bool>.NotFound("Offer not found.");
 
-        // Find or create SessionOffer
-        var sessionOffer = await _sessionOffers.GetBySessionAndOfferAsync(sessionId, request.OfferId, ct);
+        var sessionOffer = await _sessionOffers.GetBySessionAndOfferAsync(
+            sessionId, request.OfferId, ct);
+
         if (sessionOffer is null)
         {
+            // Offer was not tracked via TrackOfferImpressionsAsync —
+            // create the record and mark converted in one step
             sessionOffer = SessionOffer.Create(sessionId, request.OfferId, false);
+            sessionOffer.MarkConverted();
             await _sessionOffers.AddAsync(sessionOffer, ct);
         }
         else
@@ -59,7 +53,7 @@ public sealed class ConvertUseCase
             _sessionOffers.Update(sessionOffer);
         }
 
-        await _uow.SaveChangesAsync();
+        await _uow.SaveChangesAsync(ct);
         return FlowResult<bool>.Ok(true);
     }
 }

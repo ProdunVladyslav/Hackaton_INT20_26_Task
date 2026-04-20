@@ -5,7 +5,9 @@ public sealed record NodeOfferResponse(
     Guid NodeId,
     Guid OfferId,
     bool IsPrimary,
+    string? Tier,
+    string? CalendarProvider,
+    Guid? AssignedOwnerId,
     string OfferName,
-    string OfferSlug,
-    decimal? OfferPrice
+    string OfferSlug
 );

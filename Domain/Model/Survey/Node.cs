@@ -4,7 +4,9 @@ namespace Domain.Model.Survey
     {
         Question,
         InfoPage,
-        Offer
+        Offer,
+        LeadCapture,
+        Redirect
     }
 
     public enum ValueKind
@@ -29,7 +31,8 @@ namespace Domain.Model.Survey
         /// User drags a numeric slider between SliderMin and SliderMax.
         /// Options are not allowed on Slider questions.
         /// </summary>
-        Slider
+        Slider,
+        Text
     }
 
     public sealed class Node
@@ -50,6 +53,8 @@ namespace Domain.Model.Survey
         public AnswerType? AnswerType { get; private set; }
         public decimal? SliderMin { get; private set; }
         public decimal? SliderMax { get; private set; }
+        public NodeLeadCapture? LeadCapture { get; private set; }
+        public NodeRedirect? Redirect { get; private set; }
 
         private readonly List<Option> _options = new();
         public IReadOnlyCollection<Option> Options => _options.AsReadOnly();
@@ -187,6 +192,54 @@ namespace Domain.Model.Survey
                 throw new InvalidOperationException("Slider questions cannot have options.");
 
             _options.Add(option);
+        }
+
+        /// <summary>
+        /// Attaches a LeadCapture config to this node.
+        /// Rules:
+        ///   - Only LeadCapture nodes may have this config.
+        ///   - Can only be attached once — reassignment is not allowed.
+        ///   - The config must belong to this node (NodeId must match).
+        /// </summary>
+        public void AttachLeadCapture(NodeLeadCapture leadCapture)
+        {
+            if (Type != NodeType.LeadCapture)
+                throw new InvalidOperationException(
+                    $"LeadCapture config can only be attached to LeadCapture nodes. This node is '{Type}'.");
+
+            if (LeadCapture is not null)
+                throw new InvalidOperationException(
+                    "A LeadCapture config is already attached to this node.");
+
+            if (leadCapture.NodeId != Id)
+                throw new ArgumentException(
+                    "The LeadCapture config's NodeId does not match this node's Id.");
+
+            LeadCapture = leadCapture;
+        }
+
+        /// <summary>
+        /// Attaches a Redirect config to this node.
+        /// Rules:
+        ///   - Only Redirect nodes may have this config.
+        ///   - Can only be attached once — reassignment is not allowed.
+        ///   - The config must belong to this node (NodeId must match).
+        /// </summary>
+        public void AttachRedirect(NodeRedirect redirect)
+        {
+            if (Type != NodeType.Redirect)
+                throw new InvalidOperationException(
+                    $"Redirect config can only be attached to Redirect nodes. This node is '{Type}'.");
+
+            if (Redirect is not null)
+                throw new InvalidOperationException(
+                    "A Redirect config is already attached to this node.");
+
+            if (redirect.NodeId != Id)
+                throw new ArgumentException(
+                    "The Redirect config's NodeId does not match this node's Id.");
+
+            Redirect = redirect;
         }
     }
 }

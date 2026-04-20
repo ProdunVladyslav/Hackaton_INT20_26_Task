@@ -1,28 +1,33 @@
+using Domain.Model.Survey;
+
 namespace Infrastructure.Contracts.Nodes.Requests;
 
 public sealed record UpdateNodeRequest(
-    string? Title,
-    string? Description,
-    string? MediaUrl,
-    /// <summary>SingleChoice | MultipleChoice | Slider | null to clear. Only valid for Question nodes.</summary>
+    string? Title = null,
+    string? Description = null,
+    string? MediaUrl = null,
+    // Question
     string? AnswerType = null,
     decimal? SliderMin = null,
     decimal? SliderMax = null,
-    /// <summary>Set true to explicitly clear the AnswerType (needed to distinguish "not sent" from "clear").</summary>
     bool ClearAnswerType = false,
-    /// <summary>When updating an Offer node, update the linked offer's fields.</summary>
-    UpdateInlineOfferRequest? Offer = null
+    // Offer
+    UpdateInlineOfferRequest? Offer = null,
+    // Redirect
+    string? Tier = null,
+    string? RedirectUrl = null,
+    int? AutoRedirectAfterSeconds = null,
+    // LeadCapture
+    bool? IsRequired = null
 );
 
-/// <summary>Offer fields to update when editing an Offer node.</summary>
 public sealed record UpdateInlineOfferRequest(
+    string? Headline = null,
+    string? Body = null,
+    string? ImageUrl = null,
+    string? CalendarUrl = null,
+    string? Tier = null,
+    string? CalendarProvider = null,
     string? CtaText = null,
-    string? CtaUrl = null,
-    decimal? Price = null,
-    string? PhysicalWellnessKitName = null,
-    string? PhysicalWellnessKitItems = null,
-    string? Description = null,
-    string? Duration = null,
-    string? DigitalContent = null,
-    string? ImageUrl = null
+    string? CtaUrl = null
 );

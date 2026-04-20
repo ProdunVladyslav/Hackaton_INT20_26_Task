@@ -13,6 +13,7 @@ namespace Domain.Model.User
         public Guid OfferId { get; private set; }
         public bool IsPrimary { get; private set; }
         public bool Converted { get; private set; }
+        public DateTime? ConvertedAt { get; private set; }
         public DateTime PresentedAt { get; private set; }
 
         private SessionOffer() { }
@@ -33,7 +34,9 @@ namespace Domain.Model.User
 
         public void MarkConverted()
         {
+            if (Converted) return;
             Converted = true;
+            ConvertedAt = DateTime.UtcNow;
         }
     }
 }

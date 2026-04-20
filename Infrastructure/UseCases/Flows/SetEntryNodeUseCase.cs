@@ -9,31 +9,27 @@ namespace Infrastructure.UseCases.Flows;
 /// Use case: designate a specific node as the entry point of a flow.
 /// The node must already belong to the flow — the domain model enforces this.
 /// </summary>
-public sealed class SetEntryNodeUseCase
+public sealed class SetEntryNodeUseCase(
+    IFlowRepository _flows,
+    INodeRepository _nodes,
+    IUserProfileRepository _userProfiles,
+    IUnitOfWork _uow)
 {
-    private readonly IFlowRepository _flows;
-    private readonly INodeRepository _nodes;
-    private readonly IUnitOfWork     _uow;
-
-    public SetEntryNodeUseCase(IFlowRepository flows, IUnitOfWork uow, INodeRepository nodes)
-    {
-        _flows = flows;
-        _nodes = nodes;
-        _uow = uow;
-    }
-
     public async Task<FlowResult<FlowSummaryResponse>> ExecuteAsync(
-        Guid                 flowId,
-        SetEntryNodeRequest  request,
-        CancellationToken    ct = default)
+        Guid flowId,
+        Guid applicationUserId,
+        SetEntryNodeRequest request,
+        CancellationToken ct = default)
     {
-        // We need the nodes collection loaded to validate ownership in domain.
-        var flow = await _flows.GetFlowWithDagAsync(flowId, ct);
+        var profile = await _userProfiles.FirstOrDefaultAsync(p => p.ApplicationUserId == applicationUserId, ct);
+        if (profile == null)
+            return FlowResult<FlowSummaryResponse>.NotFound("User profile not found.");
 
+        var flow = await _flows.GetFlowWithDagAsync(flowId, profile.Id, ct);
         if (flow is null)
             return FlowResult<FlowSummaryResponse>.NotFound($"Flow {flowId} not found.");
 
-        var node = await _nodes.FirstOrDefaultAsync(n => n.Id == request.EntryNodeId);
+        var node = await _nodes.FirstOrDefaultAsync(n => n.Id == request.EntryNodeId, ct);
         if (node is null)
             return FlowResult<FlowSummaryResponse>.NotFound($"Node {request.EntryNodeId} not found.");
 
@@ -42,7 +38,6 @@ public sealed class SetEntryNodeUseCase
 
         try
         {
-            // Domain enforces: the node must belong to this flow.
             flow.SetEntryNode(request.EntryNodeId);
         }
         catch (InvalidOperationException ex)

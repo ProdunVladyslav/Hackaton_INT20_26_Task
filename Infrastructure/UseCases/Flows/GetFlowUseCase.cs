@@ -1,10 +1,6 @@
-using Application;
-using Application.Repositories.Implementations;
 using Application.Repositories.Interfaces;
 using Domain.Model.Survey;
-using Domain.Model.User;
 using Infrastructure.Contracts.Flows.Responses;
-using Microsoft.EntityFrameworkCore;
 
 namespace Infrastructure.UseCases.Flows;
 
@@ -21,119 +17,39 @@ namespace Infrastructure.UseCases.Flows;
 ///   6. Drop-off counts   — UserSessions grouped by CurrentNodeId (all node types)
 ///   7. Node offer stats  — impressions + conversions per node (Offer nodes)
 /// </summary>
-public sealed class GetFlowUseCase
+public sealed class GetFlowUseCase(
+    IFlowRepository _flows,
+    IUserProfileRepository _userProfiles,
+    INodeOfferRepository _nodeOffers,
+    IUserSessionRepository _sessions,
+    ISessionOfferRepository _sessionOffers,
+    IUserAnswerRepository _userAnswers)
 {
-    private readonly IFlowRepository _flows;
-    private readonly IUserAnswerRepository _userAnswerRepository;
-    private readonly AppDbContext    _db;
-
-    public GetFlowUseCase(IFlowRepository flows, AppDbContext db, IUserAnswerRepository userAnswerRepository)
-    {
-        _flows = flows;
-        _db    = db;
-        _userAnswerRepository = userAnswerRepository;
-    }
-
     public async Task<FlowResult<FlowDetailResponse>> ExecuteAsync(
         Guid flowId,
+        Guid applicationUserId,
         CancellationToken ct = default)
     {
-        // ── 1. Load DAG ───────────────────────────────────────────────────────
-        var flow = await _flows.GetFlowWithDagAsync(flowId, ct);
+        var profile = await _userProfiles.FirstOrDefaultAsync(p => p.ApplicationUserId == applicationUserId, ct);
+        if (profile == null)
+            return FlowResult<FlowDetailResponse>.NotFound("User profile not found.");
 
+        var flow = await _flows.GetFlowWithDagAsync(flowId, profile.Id, ct);
         if (flow is null)
             return FlowResult<FlowDetailResponse>.NotFound($"Flow {flowId} not found.");
 
         var nodeIds = flow.Nodes.Select(n => n.Id).ToList();
 
-        // ── 2. NodeOffers ─────────────────────────────────────────────────────
-        var nodeOffersByNode = (await _db.NodeOffers
-            .Where(no => nodeIds.Contains(no.NodeId))
-            .Include(no => no.Offer)
-            .ToListAsync(ct))
-            .GroupBy(no => no.NodeId)
-            .ToDictionary(g => g.Key, g => g.ToList());
+        var nodeOffersByNode = await _nodeOffers.GetByNodeIdsWithOffersAsync(nodeIds, ct);
+        var sessionStats = await _sessions.GetSessionStatsByFlowAsync(flowId, ct);
+        var flowOfferStats = await _sessionOffers.GetOfferStatsByFlowAsync(flowId, ct);
+        var answerMap = await _userAnswers.GetAnswerCountsByNodeIdsAsync(nodeIds, ct);
+        var dropOffMap = await _sessions.GetDropOffCountsByFlowAsync(flowId, nodeIds, ct);
+        var nodeImpressionMap = await _sessionOffers.GetNodeImpressionsByFlowAsync(flowId, nodeIds, ct);
+        var pathDistribution = await _sessions.GetPathDistributionAsync(flowId, ct);
+        var timeStats = await _userAnswers.GetFlowTimeStatsAsync(flowId, ct);
 
-        // ── 3. Flow-level session stats ───────────────────────────────────────
-        var sessionStats = await _db.UserSessions
-            .Where(s => s.FlowId == flowId)
-            .GroupBy(_ => 1)
-            .Select(g => new
-            {
-                TotalSessions      = g.Count(),
-                CompletedSessions  = g.Count(s => s.Status == SessionStatus.Completed),
-                AbandonedSessions  = g.Count(s => s.Status == SessionStatus.Abandoned),
-                InProgressSessions = g.Count(s => s.Status == SessionStatus.InProgress),
-                LastSessionAt      = (DateTime?)g.Max(s => s.StartedAt),
-            })
-            .FirstOrDefaultAsync(ct);
-
-        // ── 4. Flow-level offer stats ─────────────────────────────────────────
-        var flowOfferStats = await _db.SessionOffers
-            .Join(_db.UserSessions,
-                so => so.SessionId,
-                s  => s.Id,
-                (so, s) => new { so.Converted, s.FlowId })
-            .Where(x => x.FlowId == flowId)
-            .GroupBy(_ => 1)
-            .Select(g => new
-            {
-                TotalImpressions = g.Count(),
-                TotalConversions = g.Count(x => x.Converted),
-            })
-            .FirstOrDefaultAsync(ct);
-
-        // ── 5. Answer counts per node ─────────────────────────────────────────
-        var answerMap = (await _db.UserAnswers
-            .Where(a => nodeIds.Contains(a.NodeId))
-            .GroupBy(a => a.NodeId)
-            .Select(g => new { NodeId = g.Key, Count = g.Count() })
-            .ToListAsync(ct))
-            .ToDictionary(x => x.NodeId, x => x.Count);
-
-        // ── 6. Drop-off counts per node ───────────────────────────────────────
-        // Counts sessions (any status) whose last known position is this node.
-        var dropOffMap = (await _db.UserSessions
-            .Where(s => s.FlowId == flowId && nodeIds.Contains(s.CurrentNodeId))
-            .GroupBy(s => s.CurrentNodeId)
-            .Select(g => new { NodeId = g.Key, Count = g.Count() })
-            .ToListAsync(ct))
-            .ToDictionary(x => x.NodeId, x => x.Count);
-
-        // ── 7. Offer impressions + conversions per node ───────────────────────
-        // Joins NodeOffers → SessionOffers → UserSessions to scope by flow.
-        var nodeImpressionMap = (await (
-            from no in _db.NodeOffers
-            where nodeIds.Contains(no.NodeId)
-            join so in _db.SessionOffers on no.OfferId equals so.OfferId
-            join s  in _db.UserSessions  on so.SessionId equals s.Id
-            where s.FlowId == flowId
-            group new { so.Converted } by no.NodeId into g
-            select new
-            {
-                NodeId      = g.Key,
-                Impressions = g.Count(),
-                Conversions = g.Count(x => x.Converted),
-            }
-        ).ToListAsync(ct))
-        .ToDictionary(x => x.NodeId);
-
-        // ── 8. User path distribution ─────────────────────────────────────────────
-        // Groups sessions by their full node-traversal path and counts occurrences.
-        var pathDistribution = await _db.UserSessions
-            .Where(s => s.FlowId == flowId && s.UserNodePath != null)
-            .GroupBy(s => s.UserNodePath)
-            .Select(g => new
-            {
-                Path = g.Key!,
-                Count = g.Count(),
-                Completed = g.Count(s => s.Status == SessionStatus.Completed),
-                Abandoned = g.Count(s => s.Status == SessionStatus.Abandoned),
-                InProgress = g.Count(s => s.Status == SessionStatus.InProgress),
-            })
-            .OrderByDescending(x => x.Count)
-            .ToListAsync(ct);
-
+        // ── Path distribution ─────────────────────────────────────────────────
         var nodeMinimalLookup = flow.Nodes.ToDictionary(
             n => n.Id,
             n => new NodeMinimalInfoDto(
@@ -152,7 +68,7 @@ public sealed class GetFlowUseCase
                     .Split(';', StringSplitOptions.RemoveEmptyEntries)
                     .Where(raw => Guid.TryParse(raw, out _))
                     .Select(raw => nodeMinimalLookup.GetValueOrDefault(Guid.Parse(raw)))
-                    .OfType<NodeMinimalInfoDto>()   // drops nulls (deleted nodes)
+                    .OfType<NodeMinimalInfoDto>()
                     .ToList()
                     .AsReadOnly(),
                 Count: x.Count,
@@ -162,52 +78,46 @@ public sealed class GetFlowUseCase
             ))
             .ToList();
 
-        // ── 9. Time stats across all sessions ────────────────────────────────
-        var timeStats = await _userAnswerRepository.GetFlowTimeStatsAsync(flowId, ct);
-
-        // ── Assemble FlowAdminStats ───────────────────────────────────────────
-        // Node/edge counts come from the already-loaded DAG — no extra query.
+        // ── FlowAdminStats ────────────────────────────────────────────────────
         var total = sessionStats?.TotalSessions ?? 0;
 
         var flowStats = new FlowAdminStats(
-            NodeCount             : flow.Nodes.Count,
-            EdgeCount             : flow.Edges.Count,
-            QuestionCount         : flow.Nodes.Count(n => n.Type == NodeType.Question),
-            OfferNodeCount        : flow.Nodes.Count(n => n.Type == NodeType.Offer),
-            InfoPageCount         : flow.Nodes.Count(n => n.Type == NodeType.InfoPage),
+            NodeCount: flow.Nodes.Count,
+            EdgeCount: flow.Edges.Count,
+            QuestionCount: flow.Nodes.Count(n => n.Type == NodeType.Question),
+            OfferNodeCount: flow.Nodes.Count(n => n.Type == NodeType.Offer),
+            InfoPageCount: flow.Nodes.Count(n => n.Type == NodeType.InfoPage),
 
-            TotalSessions         : total,
-            CompletedSessions     : sessionStats?.CompletedSessions  ?? 0,
-            AbandonedSessions     : sessionStats?.AbandonedSessions  ?? 0,
-            InProgressSessions    : sessionStats?.InProgressSessions ?? 0,
-            CompletionRate        : total > 0
+            TotalSessions: total,
+            CompletedSessions: sessionStats?.CompletedSessions ?? 0,
+            AbandonedSessions: sessionStats?.AbandonedSessions ?? 0,
+            InProgressSessions: sessionStats?.InProgressSessions ?? 0,
+            CompletionRate: total > 0
                 ? Math.Round((double)sessionStats!.CompletedSessions / total * 100, 2) : 0d,
-            AbandonRate           : total > 0
+            AbandonRate: total > 0
                 ? Math.Round((double)sessionStats!.AbandonedSessions / total * 100, 2) : 0d,
-            LastSessionAt         : sessionStats?.LastSessionAt,
+            LastSessionAt: sessionStats?.LastSessionAt,
 
-            TotalOfferImpressions : flowOfferStats?.TotalImpressions ?? 0,
-            TotalOfferConversions : flowOfferStats?.TotalConversions ?? 0,
-            OfferConversionRate   : flowOfferStats is { TotalImpressions: > 0 }
+            TotalOfferImpressions: flowOfferStats?.TotalImpressions ?? 0,
+            TotalOfferConversions: flowOfferStats?.TotalConversions ?? 0,
+            OfferConversionRate: flowOfferStats is { TotalImpressions: > 0 }
                 ? Math.Round((double)flowOfferStats.TotalConversions / flowOfferStats.TotalImpressions * 100, 2) : 0d,
 
-            // ── Session duration ──────────────────────────────────────────────
             AvgSessionDuration: timeStats.AverageSessionDuration,
             MedianSessionDuration: timeStats.MedianSessionDuration,
             MinSessionDuration: timeStats.MinSessionDuration,
             MaxSessionDuration: timeStats.MaxSessionDuration,
 
-            // ── Answer timing ─────────────────────────────────────────────────
             AvgAnswerDuration: timeStats.AverageAnswerDuration,
             MedianAnswerDuration: timeStats.MedianAnswerDuration,
             MinAnswerDuration: timeStats.MinAnswerDuration,
             MaxAnswerDuration: timeStats.MaxAnswerDuration
         );
 
-        // ── Build base DTO ────────────────────────────────────────────────────
+        // ── Base DTO ──────────────────────────────────────────────────────────
         var detail = FlowMapper.ToDetail(flow, flowStats);
 
-        // ── Enrich each NodeDto with NodeOffers + NodeStatsDto ────────────────
+        // ── Enrich nodes ──────────────────────────────────────────────────────
         var enrichedNodes = detail.Nodes.Select(nodeDto =>
         {
             var offers = nodeOffersByNode.TryGetValue(nodeDto.Id, out var list)
@@ -219,13 +129,12 @@ public sealed class GetFlowUseCase
                           no.Offer.Id,
                           no.Offer.Slug,
                           no.Offer.Name,
-                          no.Offer.Description,
-                          no.Offer.Duration,
-                          no.Offer.DigitalContent,
-                          no.Offer.PhysicalWellnessKitName,
-                          no.Offer.PhysicalWellnessKitItems,
-                          no.Offer.Price,
+                          no.Offer.Headline,
+                          no.Offer.Body,
                           no.Offer.ImageUrl,
+                          no.Offer.CalendarUrl,
+                          no.CalendarProvider?.ToString(),
+                          no.Tier.ToString(),
                           no.Offer.CtaText,
                           no.Offer.CtaUrl
                       )
@@ -241,14 +150,52 @@ public sealed class GetFlowUseCase
                 OfferConversions: imp?.Conversions ?? 0,
                 OfferConversionRate: imp is { Impressions: > 0 }
                     ? Math.Round((double)imp.Conversions / imp.Impressions * 100, 2) : 0d,
-
                 AvgAnswerDuration: timeStats.AverageAnswerDurationByNode
                     .GetValueOrDefault(nodeDto.Id, TimeSpan.Zero)
             );
 
-            return nodeDto with { NodeOffers = offers, Stats = nodeStats };
+            // ── Resolve domain node for type-specific data ────────────────────────
+            var domainNode = flow.Nodes.First(n => n.Id == nodeDto.Id);
+
+            var redirectDto = domainNode.Redirect is { } r
+                ? new NodeRedirectDto(
+                    Id: r.Id,
+                    RedirectUrl: r.RedirectUrl,
+                    AutoRedirectAfterSeconds: r.AutoRedirectAfterSeconds,
+                    Tier: r.Tier.ToString(),
+                    Links: r.Links.Select(l => new NodeRedirectLinkDto(
+                        Id: l.Id,
+                        Label: l.Label,
+                        Url: l.Url
+                    )).ToList().AsReadOnly())
+                : null;
+
+            var leadCaptureDto = domainNode.LeadCapture is { } lc
+                ? new NodeLeadCaptureDto(
+                    Id: lc.Id,
+                    IsRequired: lc.IsRequired,
+                    Fields: lc.Fields
+                        .OrderBy(f => f.DisplayOrder)
+                        .Select(f => new NodeLeadCaptureFieldDto(
+                            Id: f.Id,
+                            FieldType: f.FieldType.ToString(),
+                            AttributeKey: f.AttributeKey,
+                            IsRequired: f.IsRequired,
+                            DisplayOrder: f.DisplayOrder,
+                            Placeholder: f.Placeholder
+                        )).ToList().AsReadOnly())
+                : null;
+
+            return nodeDto with
+            {
+                NodeOffers = offers,
+                Stats = nodeStats,
+                Redirect = redirectDto,
+                LeadCapture = leadCaptureDto
+            };
         }).ToList();
 
+        // ── AttributeKeys ─────────────────────────────────────────────────────
         var attributeKeys = flow.Nodes
             .Where(n => n.Type == NodeType.Question
                      && !string.IsNullOrWhiteSpace(n.AttributeKey)

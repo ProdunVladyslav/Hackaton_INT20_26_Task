@@ -1,4 +1,5 @@
 using Domain.Model.Auth;
+using Domain.Model.Survey;
 
 namespace Domain.Model.AdminProfile;
 
@@ -17,6 +18,9 @@ public class UserProfile
 
     /// <summary>Navigation property back to the owning user.</summary>
     public ApplicationUser ApplicationUser { get; set; } = null!;
+
+    public ICollection<Flow> Flows { get; set; } = new List<Flow>();
+    public ICollection<Offer> Offers { get; set; } = new List<Offer>();
 
     // ── Add hackathon-specific profile fields below as the task becomes clear ──
     // public string? DisplayName { get; set; }

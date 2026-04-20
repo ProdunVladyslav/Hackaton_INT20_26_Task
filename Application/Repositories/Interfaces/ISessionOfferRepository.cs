@@ -1,10 +1,5 @@
-﻿using Domain.Model.Survey;
+﻿using Application.Contracts.Analytics;
 using Domain.Model.User;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Application.Repositories.Interfaces
 {
@@ -12,5 +7,9 @@ namespace Application.Repositories.Interfaces
     {
         Task<List<SessionOffer>> GetBySessionAsync(Guid sessionId, CancellationToken ct = default);
         Task<SessionOffer?> GetBySessionAndOfferAsync(Guid sessionId, Guid offerId, CancellationToken ct = default);
+        Task<List<OfferStatItem>> GetOfferStatsByOwnerAsync(Guid userProfileId, CancellationToken ct = default);
+        Task<FlowOfferStats?> GetOfferStatsByFlowAsync(Guid flowId, CancellationToken ct = default);
+        Task<Dictionary<Guid, NodeImpressionStats>> GetNodeImpressionsByFlowAsync(Guid flowId, List<Guid> nodeIds, CancellationToken ct = default);
+        Task<Dictionary<Guid, FlowOfferStats>> GetOfferStatsByFlowsAsync(CancellationToken ct = default);
     }
 }

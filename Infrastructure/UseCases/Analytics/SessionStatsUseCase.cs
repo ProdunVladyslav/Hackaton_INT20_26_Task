@@ -1,8 +1,6 @@
-using Application;
-using Domain.Model.User;
-using Infrastructure.Contracts.Analytics.Responses;
+using Application.Contracts.Analytics;
+using Application.Repositories.Interfaces;
 using Infrastructure.Contracts.Flows.Responses;
-using Microsoft.EntityFrameworkCore;
 
 namespace Infrastructure.UseCases.Analytics;
 
@@ -15,38 +13,18 @@ namespace Infrastructure.UseCases.Analytics;
 /// - Completion rate (%)
 /// - Abandon rate (%)
 /// </summary>
-public sealed class SessionStatsUseCase
+public sealed class SessionStatsUseCase(
+    IUserProfileRepository userProfileRepository,
+    IUserSessionRepository userSessionRepository)
 {
-    private readonly AppDbContext _db;
-
-    public SessionStatsUseCase(AppDbContext db) => _db = db;
-
-    public async Task<FlowResult<SessionStatsResponse>> ExecuteAsync(CancellationToken ct = default)
+    public async Task<FlowResult<SessionStatsResponse>> ExecuteAsync(Guid applicationUserId, CancellationToken ct = default)
     {
-        var stats = await _db.UserSessions
-            .GroupBy(_ => true)
-            .Select(g => new
-            {
-                Total = g.Count(),
-                InProgress = g.Count(s => s.Status == SessionStatus.InProgress),
-                Completed = g.Count(s => s.Status == SessionStatus.Completed),
-                Abandoned = g.Count(s => s.Status == SessionStatus.Abandoned)
-            })
-            .FirstOrDefaultAsync(ct);
+        var profile = await userProfileRepository.FirstOrDefaultAsync(p => p.ApplicationUserId == applicationUserId, ct);
+        if (profile == null)
+            return FlowResult<SessionStatsResponse>.NotFound("User profile not found.");
 
-        if (stats is null)
-            return FlowResult<SessionStatsResponse>.Ok(new SessionStatsResponse(0, 0, 0, 0, 0, 0));
+        var stats = await userSessionRepository.GetStatsByOwnerAsync(profile.Id, ct);
 
-        double completionRate = stats.Total > 0 ? Math.Round((double)stats.Completed / stats.Total * 100, 2) : 0;
-        double abandonRate = stats.Total > 0 ? Math.Round((double)stats.Abandoned / stats.Total * 100, 2) : 0;
-
-        return FlowResult<SessionStatsResponse>.Ok(new SessionStatsResponse(
-            stats.Total,
-            stats.InProgress,
-            stats.Completed,
-            stats.Abandoned,
-            completionRate,
-            abandonRate
-        ));
+        return FlowResult<SessionStatsResponse>.Ok(stats);
     }
 }

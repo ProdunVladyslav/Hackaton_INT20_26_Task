@@ -10,33 +10,39 @@ namespace Infrastructure.UseCases.Options;
 /// Use case: update an option's properties (label, value, displayOrder, media).
 /// Only provided fields are updated.
 /// </summary>
-public sealed class UpdateOptionUseCase
+public sealed class UpdateOptionUseCase(
+    IOptionRepository _options,
+    INodeRepository _nodes,
+    IFlowRepository _flows,
+    IUserProfileRepository _userProfiles,
+    IUnitOfWork _uow)
 {
-    private readonly IOptionRepository _options;
-    private readonly IUnitOfWork _uow;
-
-    public UpdateOptionUseCase(IOptionRepository options, IUnitOfWork uow)
-    {
-        _options = options;
-        _uow = uow;
-    }
-
     public async Task<FlowResult<OptionResponse>> ExecuteAsync(
         Guid nodeId,
         Guid optionId,
+        Guid applicationUserId,
         UpdateOptionRequest request,
         CancellationToken ct = default)
     {
-        // Load option
+        var profile = await _userProfiles.FirstOrDefaultAsync(p => p.ApplicationUserId == applicationUserId, ct);
+        if (profile == null)
+            return FlowResult<OptionResponse>.NotFound("User profile not found.");
+
+        var node = await _nodes.GetByIdAsync(nodeId, ct);
+        if (node == null)
+            return FlowResult<OptionResponse>.NotFound("Node not found.");
+
+        var flow = await _flows.FirstOrDefaultAsync(f => f.Id == node.FlowId && f.OwnerId == profile.Id, ct);
+        if (flow == null)
+            return FlowResult<OptionResponse>.NotFound("Node not found.");
+
         var option = await _options.GetByIdAsync(optionId, ct);
         if (option == null)
             return FlowResult<OptionResponse>.NotFound("Option not found.");
 
-        // Verify option belongs to the node
         if (option.NodeId != nodeId)
             return FlowResult<OptionResponse>.NotFound("Option not found in this node.");
 
-        // Apply updates
         try
         {
             if (!string.IsNullOrWhiteSpace(request.Label))
@@ -48,11 +54,14 @@ public sealed class UpdateOptionUseCase
             if (request.DisplayOrder.HasValue)
                 option.SetDisplayOrder(request.DisplayOrder.Value);
 
-            if (request.MediaUrl != null)
+            if (request.MediaUrl is not null)
                 option.SetMedia(request.MediaUrl);
 
+            if (request.ScoreDelta.HasValue)
+                option.SetScoreDelta(request.ScoreDelta.Value);
+
             _options.Update(option);
-            await _uow.SaveChangesAsync();
+            await _uow.SaveChangesAsync(ct);
 
             return FlowResult<OptionResponse>.Ok(ToResponse(option));
         }
@@ -63,11 +72,6 @@ public sealed class UpdateOptionUseCase
     }
 
     private static OptionResponse ToResponse(Option option) =>
-        new(
-            option.Id,
-            option.NodeId,
-            option.Label,
-            option.Value,
-            option.DisplayOrder,
-            option.MediaUrl);
+        new(option.Id, option.NodeId, option.Label, option.Value,
+            option.DisplayOrder, option.MediaUrl, option.ScoreDelta);
 }

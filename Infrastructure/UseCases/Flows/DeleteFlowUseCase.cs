@@ -1,4 +1,5 @@
 using Application.Repositories.Interfaces;
+using Domain.Model.AdminProfile;
 using Domain.Model.User;
 using Infrastructure.Contracts.Flows.Responses;
 
@@ -9,27 +10,22 @@ namespace Infrastructure.UseCases.Flows;
 /// (nodes, edges, options cascade-deleted by DB foreign keys).
 /// UserSessions use Restrict delete behavior, so they must be removed explicitly.
 /// </summary>
-public sealed class DeleteFlowUseCase
+public sealed class DeleteFlowUseCase(
+    IFlowRepository _flows,
+    IUserSessionRepository _sessions,
+    IUserProfileRepository _userProfiles,
+    IUnitOfWork _uow)
 {
-    private readonly IFlowRepository        _flows;
-    private readonly IUserSessionRepository _sessions;
-    private readonly IUnitOfWork            _uow;
-
-    public DeleteFlowUseCase(
-        IFlowRepository flows,
-        IUserSessionRepository sessions,
-        IUnitOfWork uow)
-    {
-        _flows    = flows;
-        _sessions = sessions;
-        _uow      = uow;
-    }
-
     public async Task<FlowResult<bool>> ExecuteAsync(
         Guid flowId,
+        Guid applicationUserId,
         CancellationToken ct = default)
     {
-        var flow = await _flows.GetByIdAsync(flowId, ct);
+        var profile = await _userProfiles.FirstOrDefaultAsync(p => p.ApplicationUserId == applicationUserId, ct);
+        if (profile == null)
+            return FlowResult<bool>.NotFound("User profile not found.");
+
+        var flow = await _flows.FirstOrDefaultAsync(f => f.Id == flowId && f.OwnerId == profile.Id, ct);
 
         if (flow is null)
             return FlowResult<bool>.NotFound($"Flow {flowId} not found.");

@@ -13,49 +13,90 @@ namespace Infrastructure.UseCases.Quiz;
 /// If session is completed, CurrentNode is null.
 /// Otherwise, returns the current node with options and offers.
 /// </summary>
-public sealed class GetSessionUseCase
+public sealed class GetSessionUseCase(
+    IUserSessionRepository _sessions,
+    INodeRepository _nodes,
+    INodeOfferRepository _nodeOffers)
 {
-    private readonly IUserSessionRepository _sessions;
-    private readonly AppDbContext _db;
-
-    public GetSessionUseCase(IUserSessionRepository sessions, AppDbContext db)
-    {
-        _sessions = sessions;
-        _db = db;
-    }
-
     public async Task<FlowResult<SessionStateResponse>> ExecuteAsync(Guid sessionId, CancellationToken ct = default)
     {
-        // Load session
         var session = await _sessions.GetByIdAsync(sessionId, ct);
         if (session is null)
             return FlowResult<SessionStateResponse>.NotFound("Session not found.");
 
-        // Load current node (even for completed sessions — offers must be visible)
-        var currentNode = await BuildCurrentNodeAsync(session.CurrentNodeId, ct);
+        var currentNode = session.CurrentNodeId.HasValue
+            ? await BuildCurrentNodeAsync(session.CurrentNodeId.Value, ct)
+            : null;
 
-        var response = new SessionStateResponse(
+        return FlowResult<SessionStateResponse>.Ok(new SessionStateResponse(
             SessionId: session.Id,
             FlowId: session.FlowId,
             Status: session.Status.ToString(),
             StartedAt: session.StartedAt,
             CompletedAt: session.CompletedAt,
             CurrentNode: currentNode
-        );
-
-        return FlowResult<SessionStateResponse>.Ok(response);
+        ));
     }
 
     private async Task<CurrentNodeResponse?> BuildCurrentNodeAsync(Guid nodeId, CancellationToken ct)
     {
-        var node = await _db.Nodes.Include(n => n.Options).FirstOrDefaultAsync(n => n.Id == nodeId, ct);
-        if (node is null)
-            return null;
+        var node = await _nodes.GetWithOptionsAsync(nodeId, ct);
+        if (node is null) return null;
 
-        var nodeOfferData = await _db.NodeOffers
-            .Where(no => no.NodeId == nodeId)
-            .Join(_db.Offers, no => no.OfferId, o => o.Id, (no, o) => new { no, o })
-            .ToListAsync(ct);
+        var nodeOfferData = await _nodeOffers.GetByNodeIdWithOfferForQuizAsync(nodeId, ct);
+
+        var offers = nodeOfferData
+            .Select(x => new QuizOfferResponse(
+                Id: x.Offer.Id,
+                Name: x.Offer.Name,
+                Slug: x.Offer.Slug,
+                Headline: x.Offer.Headline,
+                Body: x.Offer.Body,
+                ImageUrl: x.Offer.ImageUrl,
+                CalendarUrl: x.Offer.CalendarUrl,
+                CalendarProvider: x.Link.CalendarProvider?.ToString(),
+                CtaText: x.Offer.CtaText,
+                CtaUrl: x.Offer.CtaUrl,
+                IsPrimary: x.Link.IsPrimary,
+                Tier: x.Link.Tier.ToString()))
+            .ToList();
+
+        var options = node.Options
+            .OrderBy(o => o.DisplayOrder)
+            .Select(o => new QuizOptionResponse(
+                o.Id, o.Label, o.Value, o.DisplayOrder, o.MediaUrl, o.ScoreDelta))
+            .ToList();
+
+        // LeadCapture config — only present on LeadCapture nodes
+        QuizLeadCaptureResponse? leadCapture = null;
+        if (node.LeadCapture is not null)
+        {
+            leadCapture = new QuizLeadCaptureResponse(
+                IsRequired: node.LeadCapture.IsRequired,
+                Fields: node.LeadCapture.Fields
+                    .OrderBy(f => f.DisplayOrder)
+                    .Select(f => new QuizLeadCaptureFieldResponse(
+                        FieldType: f.FieldType.ToString(),
+                        AttributeKey: f.AttributeKey,
+                        IsRequired: f.IsRequired,
+                        DisplayOrder: f.DisplayOrder,
+                        Placeholder: f.Placeholder))
+                    .ToList());
+        }
+
+        // Redirect config — only present on Redirect nodes
+        QuizRedirectResponse? redirect = null;
+        if (node.Redirect is not null)
+        {
+            redirect = new QuizRedirectResponse(
+                RedirectUrl: node.Redirect.RedirectUrl,
+                AutoRedirectAfterSeconds: node.Redirect.AutoRedirectAfterSeconds,
+                Tier: node.Redirect.Tier.ToString(),
+                Links: node.Redirect.Links
+                    .OrderBy(l => l.DisplayOrder)
+                    .Select(l => new QuizRedirectLinkResponse(l.Label, l.Url, l.DisplayOrder))
+                    .ToList());
+        }
 
         return new CurrentNodeResponse(
             Id: node.Id,
@@ -68,17 +109,9 @@ public sealed class GetSessionUseCase
             Title: node.Title,
             Description: node.Description,
             MediaUrl: node.MediaUrl,
-            Options: node.Options.OrderBy(o => o.DisplayOrder)
-                .Select(o => new QuizOptionResponse(o.Id, o.Label, o.Value, o.DisplayOrder, o.MediaUrl))
-                .ToList(),
-            Offers: nodeOfferData
-                .Select(x => new QuizOfferResponse(
-                    x.o.Id, x.o.Name, x.o.Slug,
-                    x.o.Description, x.o.Duration, x.o.DigitalContent,
-                    x.o.PhysicalWellnessKitName, x.o.PhysicalWellnessKitItems,
-                    x.o.Price, x.o.ImageUrl, x.o.CtaText, x.o.CtaUrl,
-                    x.no.IsPrimary))
-                .ToList()
-        );
+            Options: options,
+            Offers: offers,
+            LeadCapture: leadCapture,
+            Redirect: redirect);
     }
 }

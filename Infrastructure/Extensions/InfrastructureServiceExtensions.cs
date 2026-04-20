@@ -1,3 +1,4 @@
+using Domain.Services;
 using Infrastructure.Contracts.AIGeneration.Internal;
 using Infrastructure.UseCases.AIGeneration;
 using Infrastructure.UseCases.Analytics;
@@ -5,7 +6,10 @@ using Infrastructure.UseCases.Auth;
 using Infrastructure.UseCases.Content;
 using Infrastructure.UseCases.Edges;
 using Infrastructure.UseCases.Flows;
+using Infrastructure.UseCases.Leads;
+using Infrastructure.UseCases.NodeLeadCaptureFields;
 using Infrastructure.UseCases.NodeOffers;
+using Infrastructure.UseCases.NodeRedirectLinks;
 using Infrastructure.UseCases.Nodes;
 using Infrastructure.UseCases.Offers;
 using Infrastructure.UseCases.Options;
@@ -31,6 +35,7 @@ public static class InfrastructureServiceExtensions
 
         // ── Auth ──────────────────────────────────────────────────────────────
         services.AddScoped<LoginUseCase>();
+        services.AddScoped<SignUpUseCase>();
         services.AddScoped<MeUseCase>();
 
         // ── Admin: Flows ──────────────────────────────────────────────────────
@@ -49,6 +54,9 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<MoveNodeUseCase>();
         services.AddScoped<DeleteNodeUseCase>();
 
+        services.AddScoped<FlowStructureService>();
+        services.AddScoped<NodeFactory>();
+
         // ── Admin: Options ────────────────────────────────────────────────────
         services.AddScoped<CreateOptionUseCase>();
         services.AddScoped<UpdateOptionUseCase>();
@@ -66,6 +74,23 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<CreateOfferUseCase>();
         services.AddScoped<UpdateOfferUseCase>();
         services.AddScoped<DeleteOfferUseCase>();
+
+        // Leads 
+        services.AddScoped<GetLeadUseCase>();
+        services.AddScoped<UpdateLeadUseCase>();
+        services.AddScoped<ListLeadsUseCase>();
+
+        // NodeRedirectLinks
+        services.AddScoped<CreateNodeRedirectLinkUseCase>();
+        services.AddScoped<DeleteNodeRedirectLinkUseCase>();
+        services.AddScoped<ReorderNodeRedirectLinksUseCase>();
+        services.AddScoped<UpdateNodeRedirectLinkUseCase>();
+
+        // NodeLeadCaptureFields
+        services.AddScoped<CreateNodeLeadCaptureFieldUseCase>();
+        services.AddScoped<UpdateNodeLeadCaptureFieldUseCase>();
+        services.AddScoped<DeleteNodeLeadCaptureFieldUseCase>();
+        services.AddScoped<ReorderNodeLeadCaptureFieldsUseCase>();
 
         // ── Admin: Node↔Offer links ───────────────────────────────────────────
         services.AddScoped<ListNodeOffersUseCase>();

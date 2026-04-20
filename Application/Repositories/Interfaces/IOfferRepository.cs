@@ -11,5 +11,6 @@ namespace Application.Repositories.Interfaces
     {
         Task<List<Offer>> GetAllOrderedAsync(CancellationToken ct = default);
         Task<bool> SlugExistsAsync(string slug, Guid? excludeId = null, CancellationToken ct = default);
+        Task<List<Offer>> GetAllOrderedByOwnerAsync(Guid ownerProfileId, CancellationToken ct = default);
     }
 }

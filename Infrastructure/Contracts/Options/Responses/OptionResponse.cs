@@ -6,5 +6,6 @@ public sealed record OptionResponse(
     string Label,
     string Value,
     int DisplayOrder,
-    string? MediaUrl
+    string? MediaUrl,
+    int ScoreDelta
 );

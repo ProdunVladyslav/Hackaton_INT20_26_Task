@@ -1,9 +1,11 @@
+using Application.Contracts.Analytics;
 using Infrastructure.Contracts.Analytics.Responses;
 using Infrastructure.Contracts.Flows.Responses;
 using Infrastructure.UseCases.Analytics;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
+using System.Security.Claims;
 
 namespace Hackaton_INT20_26_Task.Controllers;
 
@@ -42,7 +44,10 @@ public sealed class AnalyticsController : ControllerBase
     [SwaggerResponse(200, "Session statistics.", typeof(SessionStatsResponse))]
     public async Task<IActionResult> GetSessionStats(CancellationToken ct)
     {
-        var result = await _sessionStats.ExecuteAsync(ct);
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId is null) return Unauthorized();
+
+        var result = await _sessionStats.ExecuteAsync(Guid.Parse(userId), ct);
         return ToActionResult(result);
     }
 
@@ -56,7 +61,10 @@ public sealed class AnalyticsController : ControllerBase
     [SwaggerResponse(200, "Offer statistics.", typeof(OfferStatsResponse))]
     public async Task<IActionResult> GetOfferStats(CancellationToken ct)
     {
-        var result = await _offerStats.ExecuteAsync(ct);
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId is null) return Unauthorized();
+
+        var result = await _offerStats.ExecuteAsync(Guid.Parse(userId), ct);
         return ToActionResult(result);
     }
 
@@ -70,7 +78,10 @@ public sealed class AnalyticsController : ControllerBase
     [SwaggerResponse(200, "Drop-off analysis.", typeof(DropOffResponse))]
     public async Task<IActionResult> GetDropOffs(CancellationToken ct)
     {
-        var result = await _dropOff.ExecuteAsync(ct);
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId is null) return Unauthorized();
+
+        var result = await _dropOff.ExecuteAsync(Guid.Parse(userId), ct);
         return ToActionResult(result);
     }
 

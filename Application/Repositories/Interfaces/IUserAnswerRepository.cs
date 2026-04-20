@@ -1,4 +1,5 @@
-﻿using Domain.Model.Survey;
+﻿using Application.Contracts.Analytics;
+using Domain.Model.Survey;
 using Domain.Model.User;
 using System;
 using System.Collections.Generic;
@@ -14,5 +15,9 @@ namespace Application.Repositories.Interfaces
         Task<DateTime?> GetLastAnsweredAtAsync(Guid sessionId, CancellationToken ct = default);
         Task<SessionTimeStats> GetTimeStatsAsync(Guid sessionId, CancellationToken ct = default);
         Task<FlowTimeStats> GetFlowTimeStatsAsync(Guid flowId, CancellationToken ct = default);
+        Task<Dictionary<Guid, int>> GetAnswerCountsByNodeIdsAsync(List<Guid> nodeIds, CancellationToken ct = default);
+        Task<Dictionary<Guid, DurationStats>> GetAnswerDurationStatsByFlowsAsync(CancellationToken ct = default);
+        Task<List<UserAnswer>> GetBySessionAsync(Guid sessionId, CancellationToken ct = default);
+        Task<decimal?> ResolveNumericValueAsync(string storedValue, CancellationToken ct = default);
     }
 }

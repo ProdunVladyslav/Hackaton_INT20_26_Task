@@ -1,5 +1,7 @@
 using Application.Repositories.Interfaces;
+using Domain;
 using Domain.Model.Survey;
+using Domain.Services;
 using Infrastructure.Contracts.Edges.Requests;
 using Infrastructure.Contracts.Edges.Responses;
 using Infrastructure.Contracts.Flows.Responses;
@@ -11,87 +13,91 @@ namespace Infrastructure.UseCases.Edges;
 /// Use case: update an edge's properties (priority, conditions).
 /// Only provided fields are updated.
 /// </summary>
-public sealed class UpdateEdgeUseCase
+public sealed class UpdateEdgeUseCase(
+    IEdgeRepository _edges,
+    INodeRepository _nodes,
+    IUserProfileRepository _userProfiles,
+    FlowStructureService _structure,
+    IUnitOfWork _uow)
 {
-    private readonly IEdgeRepository _edges;
-    private readonly INodeRepository _nodes;
-    private readonly IUnitOfWork _uow;
-
-    public UpdateEdgeUseCase(IEdgeRepository edges, INodeRepository nodes, IUnitOfWork uow)
-    {
-        _edges = edges;
-        _nodes = nodes;
-        _uow = uow;
-    }
-
     public async Task<FlowResult<EdgeResponse>> ExecuteAsync(
         Guid flowId,
         Guid edgeId,
+        Guid applicationUserId,
         UpdateEdgeRequest request,
         CancellationToken ct = default)
     {
-        var edge = await _edges.GetByIdAsync(edgeId, ct);
-        if (edge == null)
+        // ── 1. Auth ───────────────────────────────────────────────────────────
+        var profile = await _userProfiles.FirstOrDefaultAsync(
+            p => p.ApplicationUserId == applicationUserId, ct);
+        if (profile is null)
+            return FlowResult<EdgeResponse>.NotFound("User profile not found.");
+
+        var edge = await _edges.GetByIdWithOwnerCheckAsync(edgeId, profile.Id, ct);
+        if (edge is null)
             return FlowResult<EdgeResponse>.NotFound("Edge not found.");
 
         if (edge.FlowId != flowId)
             return FlowResult<EdgeResponse>.NotFound("Edge not found in this flow.");
 
-        // ── Validate ConditionsJson if provided ───────────────────────────────
-        if (request.ConditionsJson != null)
+        // ── 2. Parse new conditions if provided (infrastructure concern) ──────
+        ConditionGroup? conditions = null;
+        if (request.ConditionsJson is not null)
         {
-            var formatError = ConditionsJsonValidator.Validate(request.ConditionsJson);
-            if (formatError is not null)
-                return FlowResult<EdgeResponse>.Fail(formatError, statusCode: 400);
-
-            var referencedKeys = ConditionsJsonValidator.GetAttributeKeys(request.ConditionsJson);
-            foreach (var keyValue in referencedKeys)
+            try
             {
-                var nodeWithKey = await _nodes.FirstOrDefaultAsync(
-                    n => n.FlowId == flowId && n.AttributeKey == keyValue.Key, ct);
-
-                if (nodeWithKey == null)
-                    return FlowResult<EdgeResponse>.Fail(
-                        $"AttributeKey '{keyValue.Key}' is not defined by any node in this flow.",
-                        statusCode: 422);
-
-                var usedOperators = keyValue.Value
-                    .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
-
-                var allowedOperators = nodeWithKey.ValueKind switch
-                {
-                    ValueKind.Text => new[] { "eq", "neq", "in" },
-                    ValueKind.Numeric => new[] { "eq", "neq", "in", "gt", "gte", "lt", "lte", "between" },
-                    _ => new[] { "eq", "neq" }
-                };
-
-                var invalidOps = usedOperators.Except(allowedOperators, StringComparer.OrdinalIgnoreCase).ToList();
-                if (invalidOps.Count > 0)
-                    return FlowResult<EdgeResponse>.Fail(
-                        $"AttributeKey '{keyValue.Key}' has ValueKind '{nodeWithKey.ValueKind}' which does not support " +
-                        $"operator(s): {string.Join(", ", invalidOps)}. " +
-                        $"Allowed: {string.Join(", ", allowedOperators)}.",
-                        statusCode: 422);
+                conditions = ConditionsJsonParser.Parse(request.ConditionsJson);
+            }
+            catch (ArgumentException ex)
+            {
+                return FlowResult<EdgeResponse>.Fail(ex.Message, 400);
             }
         }
 
-        // ── Apply updates ─────────────────────────────────────────────────────
+        // ── 3. Domain validation if conditions changed ────────────────────────
+        if (conditions is not null)
+        {
+            try
+            {
+                var sourceNode = await _nodes.FirstOrDefaultAsync(
+                    n => n.Id == edge.SourceNodeId && n.FlowId == flowId, ct);
+                if (sourceNode is null)
+                    return FlowResult<EdgeResponse>.Fail("Source node not found.", 404);
+
+                var flowNodes = await _nodes.GetByFlowAsync(flowId, ct);
+
+                // On update we only re-validate conditions + source type —
+                // no cycle check needed since topology isn't changing.
+                if (sourceNode.Type is NodeType.InfoPage or NodeType.LeadCapture
+                    && conditions is { Rules.Count: > 0 })
+                    throw new DomainException(
+                        $"{sourceNode.Type} nodes do not support conditional edges.");
+
+                _structure.ValidateConditionGroup(conditions, flowNodes);
+            }
+            catch (DomainException ex)
+            {
+                return FlowResult<EdgeResponse>.Fail(ex.Message, 422);
+            }
+        }
+
+        // ── 4. Apply + persist ────────────────────────────────────────────────
         try
         {
             if (request.Priority.HasValue)
                 edge.SetPriority(request.Priority.Value);
 
-            if (request.ConditionsJson != null)
+            if (request.ConditionsJson is not null)
                 edge.UpdateConditions(request.ConditionsJson);
 
             _edges.Update(edge);
-            await _uow.SaveChangesAsync();
+            await _uow.SaveChangesAsync(ct);
 
             return FlowResult<EdgeResponse>.Ok(ToResponse(edge));
         }
         catch (ArgumentException ex)
         {
-            return FlowResult<EdgeResponse>.Fail(ex.Message, statusCode: 400);
+            return FlowResult<EdgeResponse>.Fail(ex.Message, 400);
         }
     }
 

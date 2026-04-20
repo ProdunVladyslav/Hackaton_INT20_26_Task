@@ -10,5 +10,8 @@ namespace Application.Repositories.Interfaces
     {
         Task<int> SaveChangesAsync();
         Task<int> SaveChangesAsync(CancellationToken ct);
+        Task BeginTransactionAsync(CancellationToken ct = default);
+        Task CommitAsync(CancellationToken ct = default);
+        Task RollbackAsync(CancellationToken ct = default);
     }
 }

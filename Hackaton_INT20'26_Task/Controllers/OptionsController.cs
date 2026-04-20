@@ -5,6 +5,7 @@ using Infrastructure.UseCases.Options;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
+using System.Security.Claims;
 
 namespace Hackaton_INT20_26_Task.Controllers;
 
@@ -36,13 +37,13 @@ public sealed class OptionsController : ControllerBase
         _reorderOptions = reorderOptions;
     }
 
-    // ── POST /api/admin/nodes/{nodeId}/options ───────────────────────────
+    private bool TryGetUserId(out Guid userId)
+        => Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out userId);
+
+    // ── POST /api/admin/nodes/{nodeId}/options ────────────────────────────
 
     [HttpPost]
-    [SwaggerOperation(
-        Summary = "Create option",
-        Description = "Creates a new option for a question node. Only question nodes can have options.",
-        OperationId = "AdminOptions_Create")]
+    [SwaggerOperation(Summary = "Create option", OperationId = "AdminOptions_Create")]
     [SwaggerResponse(201, "Option created.", typeof(OptionResponse))]
     [SwaggerResponse(400, "Validation error.")]
     [SwaggerResponse(401, "Not authenticated.")]
@@ -53,7 +54,8 @@ public sealed class OptionsController : ControllerBase
         [FromBody] CreateOptionRequest request,
         CancellationToken ct)
     {
-        var result = await _createOption.ExecuteAsync(nodeId, request, ct);
+        if (!TryGetUserId(out var userId)) return Unauthorized();
+        var result = await _createOption.ExecuteAsync(nodeId, userId, request, ct);
 
         if (!result.Success)
             return ToActionResult(result);
@@ -61,13 +63,10 @@ public sealed class OptionsController : ControllerBase
         return StatusCode(201, result.Data);
     }
 
-    // ── PUT /api/admin/nodes/{nodeId}/options/{optionId} ────────────────
+    // ── PUT /api/admin/nodes/{nodeId}/options/{optionId} ──────────────────
 
     [HttpPut("{optionId:guid}")]
-    [SwaggerOperation(
-        Summary = "Update option",
-        Description = "Updates an option's label, value, displayOrder, and/or mediaUrl. Only provided fields are changed.",
-        OperationId = "AdminOptions_Update")]
+    [SwaggerOperation(Summary = "Update option", OperationId = "AdminOptions_Update")]
     [SwaggerResponse(200, "Updated option.", typeof(OptionResponse))]
     [SwaggerResponse(400, "Validation error.")]
     [SwaggerResponse(401, "Not authenticated.")]
@@ -78,17 +77,15 @@ public sealed class OptionsController : ControllerBase
         [FromBody] UpdateOptionRequest request,
         CancellationToken ct)
     {
-        var result = await _updateOption.ExecuteAsync(nodeId, optionId, request, ct);
+        if (!TryGetUserId(out var userId)) return Unauthorized();
+        var result = await _updateOption.ExecuteAsync(nodeId, optionId, userId, request, ct);
         return ToActionResult(result);
     }
 
-    // ── DELETE /api/admin/nodes/{nodeId}/options/{optionId} ─────────────
+    // ── DELETE /api/admin/nodes/{nodeId}/options/{optionId} ───────────────
 
     [HttpDelete("{optionId:guid}")]
-    [SwaggerOperation(
-        Summary = "Delete option",
-        Description = "Permanently deletes an option.",
-        OperationId = "AdminOptions_Delete")]
+    [SwaggerOperation(Summary = "Delete option", OperationId = "AdminOptions_Delete")]
     [SwaggerResponse(204, "Option deleted.")]
     [SwaggerResponse(401, "Not authenticated.")]
     [SwaggerResponse(404, "Option or node not found.")]
@@ -97,7 +94,8 @@ public sealed class OptionsController : ControllerBase
         [FromRoute] Guid optionId,
         CancellationToken ct)
     {
-        var result = await _deleteOption.ExecuteAsync(nodeId, optionId, ct);
+        if (!TryGetUserId(out var userId)) return Unauthorized();
+        var result = await _deleteOption.ExecuteAsync(nodeId, optionId, userId, ct);
 
         if (!result.Success)
             return ToActionResult(result);
@@ -108,10 +106,7 @@ public sealed class OptionsController : ControllerBase
     // ── PUT /api/admin/nodes/{nodeId}/options/reorder ─────────────────────
 
     [HttpPut("reorder")]
-    [SwaggerOperation(
-        Summary = "Reorder options",
-        Description = "Updates the displayOrder of multiple options at once.",
-        OperationId = "AdminOptions_Reorder")]
+    [SwaggerOperation(Summary = "Reorder options", OperationId = "AdminOptions_Reorder")]
     [SwaggerResponse(200, "Options reordered.", typeof(List<OptionResponse>))]
     [SwaggerResponse(400, "Validation error.")]
     [SwaggerResponse(401, "Not authenticated.")]
@@ -120,11 +115,12 @@ public sealed class OptionsController : ControllerBase
         [FromBody] ReorderOptionsRequest request,
         CancellationToken ct)
     {
-        var result = await _reorderOptions.ExecuteAsync(nodeId, request, ct);
+        if (!TryGetUserId(out var userId)) return Unauthorized();
+        var result = await _reorderOptions.ExecuteAsync(nodeId, userId, request, ct);
         return ToActionResult(result);
     }
 
-    // ── Helpers ──────────────────────────────────────────────────────────
+    // ── Helpers ───────────────────────────────────────────────────────────
 
     private IActionResult ToActionResult<T>(FlowResult<T> result)
     {
@@ -136,7 +132,7 @@ public sealed class OptionsController : ControllerBase
             404 => NotFound(new { message = result.ErrorMessage }),
             409 => Conflict(new { message = result.ErrorMessage }),
             422 => UnprocessableEntity(new { message = result.ErrorMessage }),
-            _   => BadRequest(new { message = result.ErrorMessage })
+            _ => BadRequest(new { message = result.ErrorMessage })
         };
     }
 }

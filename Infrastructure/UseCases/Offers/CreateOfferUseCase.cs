@@ -6,67 +6,48 @@ using Infrastructure.Contracts.Offers.Responses;
 
 namespace Infrastructure.UseCases.Offers;
 
-public sealed class CreateOfferUseCase
+public sealed class CreateOfferUseCase(
+    IOfferRepository _offerRepository,
+    IUserProfileRepository _userProfiles,
+    IUnitOfWork _unitOfWork)
 {
-    private readonly IOfferRepository _offerRepository;
-    private readonly IUnitOfWork _unitOfWork;
-
-    public CreateOfferUseCase(IOfferRepository offerRepository, IUnitOfWork unitOfWork)
+    public async Task<FlowResult<OfferResponse>> ExecuteAsync(
+        Guid applicationUserId,
+        CreateOfferRequest request,
+        CancellationToken ct = default)
     {
-        _offerRepository = offerRepository;
-        _unitOfWork = unitOfWork;
-    }
+        var profile = await _userProfiles.FirstOrDefaultAsync(
+            p => p.ApplicationUserId == applicationUserId, ct);
+        if (profile is null)
+            return FlowResult<OfferResponse>.NotFound("User profile not found.");
 
-    public async Task<FlowResult<OfferResponse>> ExecuteAsync(CreateOfferRequest request, CancellationToken ct = default)
-    {
-        // Check slug uniqueness
         var slugExists = await _offerRepository.SlugExistsAsync(request.Slug, null, ct);
         if (slugExists)
             return FlowResult<OfferResponse>.Fail("Offer with this slug already exists.", 409);
 
         try
         {
-            // Create the offer
-            var offer = Offer.Create(request.Slug, request.Name);
+            var offer = Offer.Create(request.Slug, request.Name, profile.Id);
 
-            // Set optional fields (setters default to "" when null, satisfying NOT NULL DB columns)
-            offer.SetDescription(request.Description);
-            offer.SetDuration(request.Duration);
-            offer.SetDigitalContent(request.DigitalContent);
-            offer.SetPhysicalWellnessKitName(request.PhysicalWellnessKitName);
-            offer.SetPhysicalWellnessKitItems(request.PhysicalWellnessKitItems);
-            offer.SetImageUrl(request.ImageUrl);
-
-            if (request.Price.HasValue)
-                offer.SetPrice(request.Price.Value);
+            if (request.Headline is not null) offer.SetHeadline(request.Headline);
+            if (request.Body is not null) offer.SetBody(request.Body);
+            if (request.ImageUrl is not null) offer.SetImageUrl(request.ImageUrl);
+            if (request.CalendarUrl is not null) offer.SetCalendarUrl(request.CalendarUrl);
 
             offer.SetCta(request.CtaText ?? string.Empty, request.CtaUrl ?? string.Empty);
 
-            // Add and save
             await _offerRepository.AddAsync(offer, ct);
             await _unitOfWork.SaveChangesAsync(ct);
 
-            // Return response
-            var response = new OfferResponse(
-                Id: offer.Id,
-                Slug: offer.Slug,
-                Name: offer.Name,
-                Description: offer.Description,
-                Duration: offer.Duration,
-                DigitalContent: offer.DigitalContent,
-                PhysicalWellnessKitName: offer.PhysicalWellnessKitName,
-                PhysicalWellnessKitItems: offer.PhysicalWellnessKitItems,
-                Price: offer.Price,
-                ImageUrl: offer.ImageUrl,
-                CtaText: offer.CtaText,
-                CtaUrl: offer.CtaUrl
-            );
-
-            return FlowResult<OfferResponse>.Ok(response);
+            return FlowResult<OfferResponse>.Ok(ToResponse(offer));
         }
         catch (ArgumentException ex)
         {
             return FlowResult<OfferResponse>.Fail(ex.Message, 400);
         }
     }
+
+    private static OfferResponse ToResponse(Offer o) =>
+        new(o.Id, o.Slug, o.Name, o.Headline, o.Body,
+            o.ImageUrl, o.CalendarUrl, o.CtaText, o.CtaUrl);
 }

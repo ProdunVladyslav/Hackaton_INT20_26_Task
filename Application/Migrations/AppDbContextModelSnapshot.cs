@@ -170,10 +170,15 @@ namespace Application.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("OwnerId");
 
                     b.ToTable("Flows", (string)null);
                 });
@@ -241,11 +246,79 @@ namespace Application.Migrations
                     b.ToTable("Nodes", (string)null);
                 });
 
+            modelBuilder.Entity("Domain.Model.Survey.NodeLeadCapture", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsRequired")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<Guid>("NodeId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NodeId")
+                        .IsUnique();
+
+                    b.ToTable("NodeLeadCaptures", (string)null);
+                });
+
+            modelBuilder.Entity("Domain.Model.Survey.NodeLeadCaptureField", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("DisplayOrder")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.Property<string>("FieldType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<bool>("IsRequired")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<Guid>("NodeLeadCaptureId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Placeholder")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NodeLeadCaptureId", "DisplayOrder");
+
+                    b.HasIndex("NodeLeadCaptureId", "FieldType")
+                        .IsUnique();
+
+                    b.ToTable("NodeLeadCaptureFields", (string)null);
+                });
+
             modelBuilder.Entity("Domain.Model.Survey.NodeOffer", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<Guid?>("AssignedOwnerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CalendarProvider")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
 
                     b.Property<bool>("IsPrimary")
                         .ValueGeneratedOnAdd()
@@ -258,7 +331,16 @@ namespace Application.Migrations
                     b.Property<Guid>("OfferId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Tier")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasDefaultValue("Hot");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("AssignedOwnerId");
 
                     b.HasIndex("OfferId");
 
@@ -268,11 +350,80 @@ namespace Application.Migrations
                     b.ToTable("NodeOffers", (string)null);
                 });
 
+            modelBuilder.Entity("Domain.Model.Survey.NodeRedirect", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("AutoRedirectAfterSeconds")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("NodeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("RedirectUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Tier")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NodeId")
+                        .IsUnique();
+
+                    b.ToTable("NodeRedirects", (string)null);
+                });
+
+            modelBuilder.Entity("Domain.Model.Survey.NodeRedirectLink", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("DisplayOrder")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("NodeRedirectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NodeRedirectId", "DisplayOrder");
+
+                    b.ToTable("NodeRedirectLinks", (string)null);
+                });
+
             modelBuilder.Entity("Domain.Model.Survey.Offer", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<string>("CalendarUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
 
                     b.Property<string>("CtaText")
                         .IsRequired()
@@ -284,23 +435,12 @@ namespace Application.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
 
-                    b.Property<string>("Description")
+                    b.Property<string>("Headline")
                         .IsRequired()
-                        .HasMaxLength(4000)
-                        .HasColumnType("character varying(4000)");
-
-                    b.Property<string>("DigitalContent")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<string>("Duration")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
 
                     b.Property<string>("ImageUrl")
-                        .IsRequired()
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
 
@@ -309,18 +449,8 @@ namespace Application.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
 
-                    b.Property<string>("PhysicalWellnessKitItems")
-                        .IsRequired()
-                        .HasMaxLength(4000)
-                        .HasColumnType("character varying(4000)");
-
-                    b.Property<string>("PhysicalWellnessKitName")
-                        .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
-
-                    b.Property<decimal?>("Price")
-                        .HasColumnType("numeric(18,2)");
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Slug")
                         .IsRequired()
@@ -328,6 +458,8 @@ namespace Application.Migrations
                         .HasColumnType("character varying(200)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("OwnerId");
 
                     b.HasIndex("Slug")
                         .IsUnique();
@@ -358,6 +490,9 @@ namespace Application.Migrations
                     b.Property<Guid>("NodeId")
                         .HasColumnType("uuid");
 
+                    b.Property<int>("ScoreDelta")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Value")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -370,6 +505,110 @@ namespace Application.Migrations
                     b.ToTable("Options", (string)null);
                 });
 
+            modelBuilder.Entity("Domain.Model.User.Lead", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("AssignedToId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CompanyName")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("CompanySize")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<Guid>("FlowId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("FlowOwnerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("FullName")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("JobTitle")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<int>("Score")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasDefaultValue("New");
+
+                    b.Property<Guid>("TerminalNodeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TerminalNodeType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Tier")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<int>("TimeToCompleteSeconds")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.Property<string>("Website")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssignedToId");
+
+                    b.HasIndex("FlowId");
+
+                    b.HasIndex("SessionId")
+                        .IsUnique();
+
+                    b.HasIndex("TerminalNodeId");
+
+                    b.HasIndex("FlowId", "Email");
+
+                    b.HasIndex("FlowId", "Status");
+
+                    b.HasIndex("FlowId", "Tier");
+
+                    b.ToTable("Leads", (string)null);
+                });
+
             modelBuilder.Entity("Domain.Model.User.SessionOffer", b =>
                 {
                     b.Property<Guid>("Id")
@@ -380,6 +619,9 @@ namespace Application.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
+
+                    b.Property<DateTime?>("ConvertedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("IsPrimary")
                         .ValueGeneratedOnAdd()
@@ -450,11 +692,14 @@ namespace Application.Migrations
                     b.Property<DateTime?>("CompletedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<Guid>("CurrentNodeId")
+                    b.Property<Guid?>("CurrentNodeId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("FlowId")
                         .HasColumnType("uuid");
+
+                    b.Property<int>("Score")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime>("StartedAt")
                         .HasColumnType("timestamp with time zone");
@@ -650,6 +895,17 @@ namespace Application.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Domain.Model.Survey.Flow", b =>
+                {
+                    b.HasOne("Domain.Model.AdminProfile.UserProfile", "Owner")
+                        .WithMany("Flows")
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Owner");
+                });
+
             modelBuilder.Entity("Domain.Model.Survey.Node", b =>
                 {
                     b.HasOne("Domain.Model.Survey.Flow", null)
@@ -659,8 +915,31 @@ namespace Application.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Domain.Model.Survey.NodeLeadCapture", b =>
+                {
+                    b.HasOne("Domain.Model.Survey.Node", null)
+                        .WithOne("LeadCapture")
+                        .HasForeignKey("Domain.Model.Survey.NodeLeadCapture", "NodeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Domain.Model.Survey.NodeLeadCaptureField", b =>
+                {
+                    b.HasOne("Domain.Model.Survey.NodeLeadCapture", null)
+                        .WithMany("Fields")
+                        .HasForeignKey("NodeLeadCaptureId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Domain.Model.Survey.NodeOffer", b =>
                 {
+                    b.HasOne("Domain.Model.AdminProfile.UserProfile", null)
+                        .WithMany()
+                        .HasForeignKey("AssignedOwnerId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Domain.Model.Survey.Node", "Node")
                         .WithMany()
                         .HasForeignKey("NodeId")
@@ -678,12 +957,65 @@ namespace Application.Migrations
                     b.Navigation("Offer");
                 });
 
+            modelBuilder.Entity("Domain.Model.Survey.NodeRedirect", b =>
+                {
+                    b.HasOne("Domain.Model.Survey.Node", null)
+                        .WithOne("Redirect")
+                        .HasForeignKey("Domain.Model.Survey.NodeRedirect", "NodeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Domain.Model.Survey.NodeRedirectLink", b =>
+                {
+                    b.HasOne("Domain.Model.Survey.NodeRedirect", null)
+                        .WithMany("Links")
+                        .HasForeignKey("NodeRedirectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Domain.Model.Survey.Offer", b =>
+                {
+                    b.HasOne("Domain.Model.AdminProfile.UserProfile", null)
+                        .WithMany("Offers")
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Domain.Model.Survey.Option", b =>
                 {
                     b.HasOne("Domain.Model.Survey.Node", null)
                         .WithMany("Options")
                         .HasForeignKey("NodeId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Domain.Model.User.Lead", b =>
+                {
+                    b.HasOne("Domain.Model.AdminProfile.UserProfile", null)
+                        .WithMany()
+                        .HasForeignKey("AssignedToId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Domain.Model.Survey.Flow", null)
+                        .WithMany()
+                        .HasForeignKey("FlowId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Domain.Model.User.UserSession", null)
+                        .WithOne()
+                        .HasForeignKey("Domain.Model.User.Lead", "SessionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Domain.Model.Survey.Node", null)
+                        .WithMany()
+                        .HasForeignKey("TerminalNodeId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 
@@ -711,7 +1043,7 @@ namespace Application.Migrations
                         .IsRequired();
 
                     b.HasOne("Domain.Model.User.UserSession", null)
-                        .WithMany()
+                        .WithMany("Answers")
                         .HasForeignKey("SessionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -722,8 +1054,7 @@ namespace Application.Migrations
                     b.HasOne("Domain.Model.Survey.Node", null)
                         .WithMany()
                         .HasForeignKey("CurrentNodeId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("Domain.Model.Survey.Flow", null)
                         .WithMany()
@@ -783,6 +1114,13 @@ namespace Application.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Domain.Model.AdminProfile.UserProfile", b =>
+                {
+                    b.Navigation("Flows");
+
+                    b.Navigation("Offers");
+                });
+
             modelBuilder.Entity("Domain.Model.Auth.ApplicationUser", b =>
                 {
                     b.Navigation("Profile");
@@ -797,7 +1135,26 @@ namespace Application.Migrations
 
             modelBuilder.Entity("Domain.Model.Survey.Node", b =>
                 {
+                    b.Navigation("LeadCapture");
+
                     b.Navigation("Options");
+
+                    b.Navigation("Redirect");
+                });
+
+            modelBuilder.Entity("Domain.Model.Survey.NodeLeadCapture", b =>
+                {
+                    b.Navigation("Fields");
+                });
+
+            modelBuilder.Entity("Domain.Model.Survey.NodeRedirect", b =>
+                {
+                    b.Navigation("Links");
+                });
+
+            modelBuilder.Entity("Domain.Model.User.UserSession", b =>
+                {
+                    b.Navigation("Answers");
                 });
 #pragma warning restore 612, 618
         }

@@ -4,13 +4,10 @@ public sealed record OfferResponse(
     Guid Id,
     string Slug,
     string Name,
-    string? Description,
-    string? Duration,
-    string? DigitalContent,
-    string? PhysicalWellnessKitName,
-    string? PhysicalWellnessKitItems,
-    decimal? Price,
+    string? Headline,
+    string? Body,
     string? ImageUrl,
+    string? CalendarUrl,
     string? CtaText,
     string? CtaUrl
 );

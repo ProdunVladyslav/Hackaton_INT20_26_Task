@@ -4,21 +4,25 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Infrastructure.UseCases.Offers;
 
-public sealed class DeleteOfferUseCase
+public sealed class DeleteOfferUseCase(
+    IOfferRepository _offerRepository,
+    IUserProfileRepository _userProfiles,
+    IUnitOfWork _unitOfWork)
 {
-    private readonly IOfferRepository _offerRepository;
-    private readonly IUnitOfWork _unitOfWork;
-
-    public DeleteOfferUseCase(IOfferRepository offerRepository, IUnitOfWork unitOfWork)
+    public async Task<FlowResult<bool>> ExecuteAsync(
+        Guid id,
+        Guid applicationUserId,
+        CancellationToken ct = default)
     {
-        _offerRepository = offerRepository;
-        _unitOfWork = unitOfWork;
-    }
+        var profile = await _userProfiles.FirstOrDefaultAsync(p => p.ApplicationUserId == applicationUserId, ct);
+        if (profile == null)
+            return FlowResult<bool>.NotFound("User profile not found.");
 
-    public async Task<FlowResult<bool>> ExecuteAsync(Guid id, CancellationToken ct = default)
-    {
         var offer = await _offerRepository.GetByIdAsync(id, ct);
         if (offer is null)
+            return FlowResult<bool>.NotFound("Offer not found.");
+
+        if (offer.OwnerId != profile.Id)
             return FlowResult<bool>.NotFound("Offer not found.");
 
         try
@@ -28,12 +32,9 @@ public sealed class DeleteOfferUseCase
 
             return FlowResult<bool>.Ok(true);
         }
-        catch (DbUpdateException ex)
+        catch (DbUpdateException)
         {
-            // DB Restrict constraint violation: offer is linked to nodes
-            return FlowResult<bool>.Fail(
-                "Offer is linked to nodes. Unlink it first.",
-                409);
+            return FlowResult<bool>.Fail("Offer is linked to nodes. Unlink it first.", 409);
         }
     }
 }

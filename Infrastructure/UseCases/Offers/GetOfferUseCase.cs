@@ -1,40 +1,32 @@
 using Application.Repositories.Interfaces;
+using Domain.Model.Survey;
 using Infrastructure.Contracts.Flows.Responses;
 using Infrastructure.Contracts.Offers.Responses;
 
 namespace Infrastructure.UseCases.Offers;
 
-public sealed class GetOfferUseCase
+public sealed class GetOfferUseCase(
+    IOfferRepository _offerRepository,
+    IUserProfileRepository _userProfiles)
 {
-    private readonly IOfferRepository _offerRepository;
-
-    public GetOfferUseCase(IOfferRepository offerRepository)
+    public async Task<FlowResult<OfferResponse>> ExecuteAsync(
+        Guid id,
+        Guid applicationUserId,
+        CancellationToken ct = default)
     {
-        _offerRepository = offerRepository;
-    }
+        var profile = await _userProfiles.FirstOrDefaultAsync(
+            p => p.ApplicationUserId == applicationUserId, ct);
+        if (profile is null)
+            return FlowResult<OfferResponse>.NotFound("User profile not found.");
 
-    public async Task<FlowResult<OfferResponse>> ExecuteAsync(Guid id, CancellationToken ct = default)
-    {
         var offer = await _offerRepository.GetByIdAsync(id, ct);
-
-        if (offer is null)
+        if (offer is null || offer.OwnerId != profile.Id)
             return FlowResult<OfferResponse>.NotFound("Offer not found.");
 
-        var response = new OfferResponse(
-            Id: offer.Id,
-            Slug: offer.Slug,
-            Name: offer.Name,
-            Description: offer.Description,
-            Duration: offer.Duration,
-            DigitalContent: offer.DigitalContent,
-            PhysicalWellnessKitName: offer.PhysicalWellnessKitName,
-            PhysicalWellnessKitItems: offer.PhysicalWellnessKitItems,
-            Price: offer.Price,
-            ImageUrl: offer.ImageUrl,
-            CtaText: offer.CtaText,
-            CtaUrl: offer.CtaUrl
-        );
-
-        return FlowResult<OfferResponse>.Ok(response);
+        return FlowResult<OfferResponse>.Ok(ToResponse(offer));
     }
+
+    private static OfferResponse ToResponse(Offer o) =>
+        new(o.Id, o.Slug, o.Name, o.Headline, o.Body,
+            o.ImageUrl, o.CalendarUrl, o.CtaText, o.CtaUrl);
 }

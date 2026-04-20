@@ -5,6 +5,7 @@ using Infrastructure.UseCases.Offers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
+using System.Security.Claims;
 
 namespace Hackaton_INT20_26_Task.Controllers;
 
@@ -39,44 +40,40 @@ public sealed class OffersController : ControllerBase
         _deleteOffer = deleteOffer;
     }
 
+    private bool TryGetUserId(out Guid userId)
+        => Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out userId);
+
     // ── GET /api/admin/offers ─────────────────────────────────────────────────
 
     [HttpGet]
-    [SwaggerOperation(
-        Summary = "List all offers",
-        Description = "Returns all offers ordered by name.",
-        OperationId = "AdminOffers_List")]
+    [SwaggerOperation(Summary = "List all offers", OperationId = "AdminOffers_List")]
     [SwaggerResponse(200, "Offer list.", typeof(List<OfferResponse>))]
     [SwaggerResponse(401, "Not authenticated.")]
     public async Task<IActionResult> ListOffers(CancellationToken ct)
     {
-        var result = await _listOffers.ExecuteAsync(ct);
-        return Ok(result.Data);
+        if (!TryGetUserId(out var userId)) return Unauthorized();
+        var result = await _listOffers.ExecuteAsync(userId, ct);
+        return ToActionResult(result);
     }
 
     // ── GET /api/admin/offers/{id} ────────────────────────────────────────────
 
     [HttpGet("{id:guid}")]
-    [SwaggerOperation(
-        Summary = "Get offer details",
-        Description = "Returns a single offer by ID.",
-        OperationId = "AdminOffers_Get")]
+    [SwaggerOperation(Summary = "Get offer details", OperationId = "AdminOffers_Get")]
     [SwaggerResponse(200, "Offer detail.", typeof(OfferResponse))]
     [SwaggerResponse(401, "Not authenticated.")]
     [SwaggerResponse(404, "Offer not found.")]
     public async Task<IActionResult> GetOffer([FromRoute] Guid id, CancellationToken ct)
     {
-        var result = await _getOffer.ExecuteAsync(id, ct);
+        if (!TryGetUserId(out var userId)) return Unauthorized();
+        var result = await _getOffer.ExecuteAsync(id, userId, ct);
         return ToActionResult(result);
     }
 
     // ── POST /api/admin/offers ────────────────────────────────────────────────
 
     [HttpPost]
-    [SwaggerOperation(
-        Summary = "Create offer",
-        Description = "Creates a new offer with the provided details.",
-        OperationId = "AdminOffers_Create")]
+    [SwaggerOperation(Summary = "Create offer", OperationId = "AdminOffers_Create")]
     [SwaggerResponse(201, "Offer created.", typeof(OfferResponse))]
     [SwaggerResponse(400, "Validation error.")]
     [SwaggerResponse(401, "Not authenticated.")]
@@ -85,7 +82,8 @@ public sealed class OffersController : ControllerBase
         [FromBody] CreateOfferRequest request,
         CancellationToken ct)
     {
-        var result = await _createOffer.ExecuteAsync(request, ct);
+        if (!TryGetUserId(out var userId)) return Unauthorized();
+        var result = await _createOffer.ExecuteAsync(userId, request, ct);
 
         if (!result.Success)
             return ToActionResult(result);
@@ -99,10 +97,7 @@ public sealed class OffersController : ControllerBase
     // ── PUT /api/admin/offers/{id} ────────────────────────────────────────────
 
     [HttpPut("{id:guid}")]
-    [SwaggerOperation(
-        Summary = "Update offer",
-        Description = "Updates an offer. Only provided fields are changed.",
-        OperationId = "AdminOffers_Update")]
+    [SwaggerOperation(Summary = "Update offer", OperationId = "AdminOffers_Update")]
     [SwaggerResponse(200, "Updated offer.", typeof(OfferResponse))]
     [SwaggerResponse(400, "Validation error.")]
     [SwaggerResponse(401, "Not authenticated.")]
@@ -113,24 +108,23 @@ public sealed class OffersController : ControllerBase
         [FromBody] UpdateOfferRequest request,
         CancellationToken ct)
     {
-        var result = await _updateOffer.ExecuteAsync(id, request, ct);
+        if (!TryGetUserId(out var userId)) return Unauthorized();
+        var result = await _updateOffer.ExecuteAsync(id, userId, request, ct);
         return ToActionResult(result);
     }
 
     // ── DELETE /api/admin/offers/{id} ─────────────────────────────────────────
 
     [HttpDelete("{id:guid}")]
-    [SwaggerOperation(
-        Summary = "Delete offer",
-        Description = "Permanently deletes an offer. Offer must not be linked to any nodes.",
-        OperationId = "AdminOffers_Delete")]
+    [SwaggerOperation(Summary = "Delete offer", OperationId = "AdminOffers_Delete")]
     [SwaggerResponse(204, "Offer deleted.")]
     [SwaggerResponse(401, "Not authenticated.")]
     [SwaggerResponse(404, "Offer not found.")]
     [SwaggerResponse(409, "Offer is linked to nodes.")]
     public async Task<IActionResult> DeleteOffer([FromRoute] Guid id, CancellationToken ct)
     {
-        var result = await _deleteOffer.ExecuteAsync(id, ct);
+        if (!TryGetUserId(out var userId)) return Unauthorized();
+        var result = await _deleteOffer.ExecuteAsync(id, userId, ct);
 
         if (!result.Success)
             return ToActionResult(result);
@@ -138,7 +132,7 @@ public sealed class OffersController : ControllerBase
         return NoContent();
     }
 
-    // ── Helpers ──────────────────────────────────────────────────────────────
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
     private IActionResult ToActionResult<T>(FlowResult<T> result)
     {
@@ -150,7 +144,7 @@ public sealed class OffersController : ControllerBase
             404 => NotFound(new { message = result.ErrorMessage }),
             409 => Conflict(new { message = result.ErrorMessage }),
             422 => UnprocessableEntity(new { message = result.ErrorMessage }),
-            _   => BadRequest(new { message = result.ErrorMessage })
+            _ => BadRequest(new { message = result.ErrorMessage })
         };
     }
 }

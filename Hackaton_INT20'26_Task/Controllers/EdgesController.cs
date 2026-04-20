@@ -1,10 +1,11 @@
-using Infrastructure.Contracts.Flows.Responses;
 using Infrastructure.Contracts.Edges.Requests;
 using Infrastructure.Contracts.Edges.Responses;
+using Infrastructure.Contracts.Flows.Responses;
 using Infrastructure.UseCases.Edges;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
+using System.Security.Claims;
 
 namespace Hackaton_INT20_26_Task.Controllers;
 
@@ -17,22 +18,11 @@ namespace Hackaton_INT20_26_Task.Controllers;
 [Authorize]
 [Produces("application/json")]
 [Tags("Admin — Edges")]
-public sealed class EdgesController : ControllerBase
+public sealed class EdgesController(
+    CreateEdgeUseCase _createEdge,
+    UpdateEdgeUseCase _updateEdge,
+    DeleteEdgeUseCase _deleteEdge) : ControllerBase
 {
-    private readonly CreateEdgeUseCase _createEdge;
-    private readonly UpdateEdgeUseCase _updateEdge;
-    private readonly DeleteEdgeUseCase _deleteEdge;
-
-    public EdgesController(
-        CreateEdgeUseCase createEdge,
-        UpdateEdgeUseCase updateEdge,
-        DeleteEdgeUseCase deleteEdge)
-    {
-        _createEdge = createEdge;
-        _updateEdge = updateEdge;
-        _deleteEdge = deleteEdge;
-    }
-
     // ── POST /api/admin/flows/{flowId}/edges ──────────────────────────────
 
     [HttpPost]
@@ -50,7 +40,10 @@ public sealed class EdgesController : ControllerBase
         [FromBody] CreateEdgeRequest request,
         CancellationToken ct)
     {
-        var result = await _createEdge.ExecuteAsync(flowId, request, ct);
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId is null) return Unauthorized();
+
+        var result = await _createEdge.ExecuteAsync(flowId, Guid.Parse(userId), request, ct);
 
         if (!result.Success)
             return ToActionResult(result);
@@ -75,7 +68,10 @@ public sealed class EdgesController : ControllerBase
         [FromBody] UpdateEdgeRequest request,
         CancellationToken ct)
     {
-        var result = await _updateEdge.ExecuteAsync(flowId, edgeId, request, ct);
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId is null) return Unauthorized();
+
+        var result = await _updateEdge.ExecuteAsync(flowId, edgeId, Guid.Parse(userId), request, ct);
         return ToActionResult(result);
     }
 
@@ -94,7 +90,10 @@ public sealed class EdgesController : ControllerBase
         [FromRoute] Guid edgeId,
         CancellationToken ct)
     {
-        var result = await _deleteEdge.ExecuteAsync(flowId, edgeId, ct);
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId is null) return Unauthorized();
+
+        var result = await _deleteEdge.ExecuteAsync(flowId, Guid.Parse(userId), edgeId, ct);
 
         if (!result.Success)
             return ToActionResult(result);

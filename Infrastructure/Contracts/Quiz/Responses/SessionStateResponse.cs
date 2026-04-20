@@ -21,23 +21,56 @@ public sealed record CurrentNodeResponse(
     string? Description,
     string? MediaUrl,
     List<QuizOptionResponse> Options,
-    List<QuizOfferResponse> Offers
+    List<QuizOfferResponse> Offers,
+    QuizLeadCaptureResponse? LeadCapture,  // populated when Type == LeadCapture
+    QuizRedirectResponse? Redirect         // populated when Type == Redirect
 );
-
-public sealed record QuizOptionResponse(Guid Id, string Label, string Value, int DisplayOrder, string? MediaUrl);
+public sealed record QuizOptionResponse(
+    Guid Id,
+    string Label,
+    string Value,
+    int DisplayOrder,
+    string? MediaUrl,
+    int ScoreDelta
+);
 
 public sealed record QuizOfferResponse(
     Guid Id,
     string Name,
     string Slug,
-    string? Description,
-    string? Duration,
-    string? DigitalContent,
-    string? PhysicalWellnessKitName,
-    string? PhysicalWellnessKitItems,
-    decimal? Price,
+    string? Headline,
+    string? Body,
     string? ImageUrl,
+    string? CalendarUrl,
+    string? CalendarProvider,
     string? CtaText,
     string? CtaUrl,
-    bool IsPrimary
+    bool IsPrimary,
+    string Tier
+);
+
+public sealed record QuizLeadCaptureResponse(
+    bool IsRequired,
+    IReadOnlyList<QuizLeadCaptureFieldResponse> Fields
+);
+
+public sealed record QuizLeadCaptureFieldResponse(
+    string FieldType,
+    string AttributeKey,
+    bool IsRequired,
+    int DisplayOrder,
+    string? Placeholder
+);
+
+public sealed record QuizRedirectResponse(
+    string? RedirectUrl,
+    int? AutoRedirectAfterSeconds,
+    string Tier,
+    IReadOnlyList<QuizRedirectLinkResponse> Links
+);
+
+public sealed record QuizRedirectLinkResponse(
+    string Label,
+    string Url,
+    int DisplayOrder
 );

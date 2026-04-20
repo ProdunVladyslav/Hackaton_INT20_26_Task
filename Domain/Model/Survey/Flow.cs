@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Domain.Model.AdminProfile;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -16,6 +17,8 @@ namespace Domain.Model.Survey
         public Guid? EntryNodeId { get; private set; }
         public DateTime CreatedAt { get; private set; }
         public DateTime UpdatedAt { get; private set; }
+        public Guid OwnerId { get; private set; }
+        public UserProfile Owner { get; private set; }
 
         private readonly List<Node> _nodes = new();
         public IReadOnlyCollection<Node> Nodes => _nodes.AsReadOnly();
@@ -25,18 +28,22 @@ namespace Domain.Model.Survey
 
         private Flow() { }
 
-        private Flow(string name, string description)
+        private Flow(string name, string description, Guid ownerId)
         {
             Id = Guid.NewGuid();
+            OwnerId = ownerId;
             SetName(name);
             Description = description;
             CreatedAt = DateTime.UtcNow;
             UpdatedAt = DateTime.UtcNow;
         }
 
-        public static Flow Create(string name, string description)
+        public static Flow Create(string name, string description, Guid ownerId)
         {
-            return new Flow(name, description);
+            if (ownerId == Guid.Empty)
+                throw new ArgumentException("Owner is required");
+
+            return new Flow(name, description, ownerId);
         }
 
         public void SetName(string name)

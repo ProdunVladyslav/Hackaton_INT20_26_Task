@@ -9,24 +9,23 @@ namespace Infrastructure.UseCases.Flows;
 /// Use case: create a new, unpublished flow with the given name and description.
 /// The flow starts with no nodes, no edges, and no entry node.
 /// </summary>
-public sealed class CreateFlowUseCase
+public sealed class CreateFlowUseCase(
+    IFlowRepository _flows,
+    IUserProfileRepository _userProfiles,
+    IUnitOfWork _uow)
 {
-    private readonly IFlowRepository _flows;
-    private readonly IUnitOfWork     _uow;
-
-    public CreateFlowUseCase(IFlowRepository flows, IUnitOfWork uow)
-    {
-        _flows = flows;
-        _uow   = uow;
-    }
-
     public async Task<FlowResult<FlowSummaryResponse>> ExecuteAsync(
         CreateFlowRequest request,
+        Guid applicationUserId,
         CancellationToken ct = default)
     {
+        var profile = await _userProfiles.FirstOrDefaultAsync(p => p.ApplicationUserId == applicationUserId, ct);
+        if (profile == null)
+            return FlowResult<FlowSummaryResponse>.NotFound("User profile not found.");
+
         // Guard: name uniqueness is not required by spec but we validate it's not blank
         // (the DTO attribute already covers this, but we enforce in the domain too).
-        var flow = Flow.Create(request.Name, request.Description ?? string.Empty);
+        var flow = Flow.Create(request.Name, request.Description ?? string.Empty, profile.Id);
 
         await _flows.AddAsync(flow, ct);
         await _uow.SaveChangesAsync();
