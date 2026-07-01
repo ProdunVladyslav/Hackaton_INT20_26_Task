@@ -10,7 +10,10 @@ namespace Application.Contracts.Analytics
         string Path,
         int Count,
         int Completed,
+        int Qualified,
         int Abandoned,
-        int InProgress
+        int InProgress,
+        int Converted,
+        string? TerminalNodeType  // "Offer" | "Redirect" | null
     );
 }

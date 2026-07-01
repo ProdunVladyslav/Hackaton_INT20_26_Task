@@ -34,26 +34,55 @@ namespace Domain.Services
         /// Pass excludeNodeId = Guid.Empty on create, or the node's own Id on update.
         /// </summary>
         public void ValidateAttributeKey(
-            IEnumerable<Node> flowNodes,
-            string attributeKey,
-            ValueKind proposedValueKind,
-            Guid excludeNodeId)
+             IEnumerable<Node> flowNodes,
+             string attributeKey,
+             ValueKind proposedValueKind,
+             AnswerType proposedAnswerType,
+             Guid excludeNodeId)
         {
             if (_reservedAttributeKeys.Contains(attributeKey))
                 throw new DomainException(
                     $"'{attributeKey}' is reserved by the system and cannot be used as an attribute key.");
 
-            var conflict = flowNodes
+            var siblings = flowNodes
                 .Where(n =>
                     n.Id != excludeNodeId &&
                     n.Type == NodeType.Question &&
                     string.Equals(n.AttributeKey, attributeKey, StringComparison.OrdinalIgnoreCase))
-                .FirstOrDefault(n => n.ValueKind != proposedValueKind);
+                .ToList();
 
-            if (conflict is not null)
+            var valueKindConflict = siblings.FirstOrDefault(n => n.ValueKind != proposedValueKind);
+            if (valueKindConflict is not null)
                 throw new DomainException(
                     $"Attribute key '{attributeKey}' is already used with ValueKind " +
-                    $"'{conflict.ValueKind}' in this flow. All nodes sharing a key must have the same ValueKind.");
+                    $"'{valueKindConflict.ValueKind}' in this flow. All nodes sharing a key must have the same ValueKind.");
+
+            // No siblings share this key yet — no answer-type constraint to enforce
+            if (siblings.Count == 0)
+                return;
+
+            var existingAnswerType = siblings[0].AnswerType;
+
+            var group = existingAnswerType switch
+            {
+                AnswerType.SingleChoice or AnswerType.MultipleChoice => AnswerTypesSwitchableInternally.Choice,
+                AnswerType.Text => AnswerTypesSwitchableInternally.Text,
+                AnswerType.Slider => AnswerTypesSwitchableInternally.Slider,
+                _ => AnswerTypesSwitchableInternally.Choice,
+            };
+
+            var allowed = group switch
+            {
+                AnswerTypesSwitchableInternally.Choice => proposedAnswerType is AnswerType.SingleChoice or AnswerType.MultipleChoice,
+                AnswerTypesSwitchableInternally.Text => proposedAnswerType == AnswerType.Text,
+                AnswerTypesSwitchableInternally.Slider => proposedAnswerType == AnswerType.Slider,
+                _ => false,
+            };
+
+            if (!allowed)
+                throw new DomainException(
+                    $"Attribute key '{attributeKey}' is already used with AnswerType '{existingAnswerType}' " +
+                    $"in this flow. Proposed type '{proposedAnswerType}' is incompatible.");
         }
 
         // ── Edge / DAG rules ──────────────────────────────────────────────────────
@@ -172,10 +201,10 @@ namespace Domain.Services
                 throw new DomainException(
                     $"{sourceNode.Type} nodes are terminal and cannot have outgoing edges.");
 
-            if (sourceNode.Type is NodeType.InfoPage or NodeType.LeadCapture
-                && conditions is { Rules.Count: > 0 })
-                throw new DomainException(
-                    $"{sourceNode.Type} nodes do not support conditional edges.");
+            //if (sourceNode.Type is NodeType.InfoPage or NodeType.LeadCapture
+            //    && conditions is { Rules.Count: > 0 })
+            //    throw new DomainException(
+            //        $"{sourceNode.Type} nodes do not support conditional edges.");
 
             ValidateNoCycle(existingEdges, sourceNode.Id, targetNode.Id);
 

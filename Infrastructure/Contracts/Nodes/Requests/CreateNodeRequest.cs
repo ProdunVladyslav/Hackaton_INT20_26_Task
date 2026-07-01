@@ -40,7 +40,7 @@ public sealed record CreateNodeRequest(
 
     // ── Redirect ──────────────────────────────────────────────────────────────
     /// <summary>Hot | Warm | Cold | Disqualified</summary>
-    string? Tier = null,
+    string? DisqualificationReason = null,
     string? RedirectUrl = null,
     int? AutoRedirectAfterSeconds = null,
     /// <summary>Up to 3 resource links shown on the redirect screen.</summary>

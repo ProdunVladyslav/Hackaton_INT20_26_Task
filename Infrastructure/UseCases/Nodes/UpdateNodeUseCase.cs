@@ -90,6 +90,17 @@ public sealed class UpdateNodeUseCase(
                             "ValueKind is immutable after creation.",
                             422);
 
+                    if (node.AnswerType == AnswerType.Text && answerType != AnswerType.Text)
+                        return FlowResult<NodeResponse>.Fail(
+                            $"Changing AnswerType from 'Text' to '{answerType}' is not allowed. Create a new node instead.",
+                            422);
+
+                    if ((node.AnswerType == AnswerType.MultipleChoice || node.AnswerType == AnswerType.SingleChoice)
+                        && answerType != AnswerType.SingleChoice && answerType != AnswerType.MultipleChoice)
+                        return FlowResult<NodeResponse>.Fail(
+                            $"Changing AnswerType from '{node.AnswerType}' to '{answerType}' is not allowed. Create a new node instead.",
+                            422);
+
                     if (answerType == AnswerType.Slider && node.Options.Count > 0)
                         _options.RemoveRange(node.Options);
 
@@ -159,9 +170,8 @@ public sealed class UpdateNodeUseCase(
                     }
                 }
 
-                if (request.Tier is not null
-                    && Enum.TryParse<QualificationTier>(request.Tier, ignoreCase: true, out var tier))
-                    node.Redirect.SetTier(tier);
+                if (request.DisqualificationReason is not null)
+                    node.Redirect.SetDisqualificationReason(request.DisqualificationReason);
             }
 
             // ── 6. LeadCapture node — IsRequired only ─────────────────────────

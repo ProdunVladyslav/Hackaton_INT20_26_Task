@@ -1,6 +1,11 @@
 using Application.Repositories.Interfaces;
+using Domain.Model.Survey;
+using Domain.Model.User;
+using Domain.Services;
 using Infrastructure.Contracts.Flows.Responses;
 using Infrastructure.Services.Validators;
+using Infrastructure.UseCases.Flows;
+using System.Timers;
 
 namespace Infrastructure.UseCases.Nodes;
 
@@ -15,7 +20,10 @@ public sealed class DeleteNodeUseCase(
     IEdgeRepository _edges,
     IUserSessionRepository _userSessions,
     IUserProfileRepository _userProfiles,
-    IUnitOfWork _uow)
+    IUserAnswerRepository _userAnswers,
+    UnpublishFlowUseCase _unpublishFlowUseCase,
+    IUnitOfWork _uow,
+    IDateTimeProvider _time)
 {
     public async Task<FlowResult<bool>> ExecuteAsync(
         Guid flowId,
@@ -27,7 +35,7 @@ public sealed class DeleteNodeUseCase(
         if (profile == null)
             return FlowResult<bool>.NotFound("User profile not found.");
 
-        var flow = await _flows.FirstOrDefaultAsync(f => f.Id == flowId && f.OwnerId == profile.Id, ct);
+        Flow flow = await _flows.FirstOrDefaultAsync(f => f.Id == flowId && f.OwnerId == profile.Id, ct);
         if (flow == null)
             return FlowResult<bool>.NotFound("Flow not found.");
 
@@ -41,7 +49,7 @@ public sealed class DeleteNodeUseCase(
         // ── Unpublish flow if node is entry point ─────────────────────────────
         if (flow.EntryNodeId == nodeId)
         {
-            try { flow.Unpublish(); } catch { /* already unpublished */ }
+            try { flow.Unpublish(_time); } catch { /* already unpublished */ }
         }
 
         // ── Clean up conditions referencing this AttributeKey ─────────────────
@@ -59,10 +67,19 @@ public sealed class DeleteNodeUseCase(
             }
         }
 
+        if(flow.EntryNodeId == node.Id)
+        {
+            await _unpublishFlowUseCase.ExecuteAsync(flow.Id, applicationUserId);
+            flow.UnsetEntryNodeId(_time);
+        }
+
         var sessions = await _userSessions.GetByCurrentNodeIdAsync(nodeId, ct);
 
         foreach (var session in sessions)
             session.ClearCurrentNode();
+
+        // ── Delete UserAnswers referencing this node ──────────────────────────
+        await _userAnswers.DeleteByNodeIdAsync(nodeId, ct);
 
         // ── Delete NodeOffers, Edges, Node ────────────────────────────────────
         await _nodeOffers.DeleteByNodeIdAsync(nodeId, ct);

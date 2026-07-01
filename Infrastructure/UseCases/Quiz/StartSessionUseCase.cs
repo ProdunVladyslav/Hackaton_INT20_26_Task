@@ -1,10 +1,10 @@
 using Application;
 using Application.Repositories.Interfaces;
 using Domain.Model.User;
+using Domain.Services;
 using Infrastructure.Contracts.Quiz.Requests;
 using Infrastructure.Contracts.Quiz.Responses;
 using Infrastructure.Contracts.Flows.Responses;
-using Microsoft.EntityFrameworkCore;
 
 namespace Infrastructure.UseCases.Quiz;
 
@@ -22,7 +22,8 @@ public sealed class StartSessionUseCase(
     IUserSessionRepository _sessions,
     INodeRepository _nodes,
     INodeOfferRepository _nodeOffers,
-    IUnitOfWork _uow)
+    IUnitOfWork _uow,
+    IDateTimeProvider _time)
 {
     public async Task<FlowResult<SessionStateResponse>> ExecuteAsync(
         StartSessionRequest request,
@@ -38,7 +39,11 @@ public sealed class StartSessionUseCase(
         if (flow.EntryNodeId is null)
             return FlowResult<SessionStateResponse>.Fail("Flow has no entry node.", 422);
 
-        var session = UserSession.Create(request.FlowId, flow.EntryNodeId.Value);
+        var entryNode = await _nodes.GetByIdAsync(flow.EntryNodeId.Value, ct);
+        if (entryNode is null)
+            return FlowResult<SessionStateResponse>.Fail("Entry node no longer exists.", 422);
+
+        var session = UserSession.Create(request.FlowId, flow.EntryNodeId.Value, _time);
         session.SetUtm(request.UtmSource, request.UtmCampaign);
 
         await _sessions.AddAsync(session, ct);
@@ -109,9 +114,9 @@ public sealed class StartSessionUseCase(
             redirect = new QuizRedirectResponse(
                 RedirectUrl: node.Redirect.RedirectUrl,
                 AutoRedirectAfterSeconds: node.Redirect.AutoRedirectAfterSeconds,
-                Tier: node.Redirect.Tier.ToString(),
+                DisqualificationReason: node.Redirect.DisqualificationReason,
                 Links: node.Redirect.Links
-                    .OrderBy(l => l.DisplayOrder)
+                    .   OrderBy(l => l.DisplayOrder)
                     .Select(l => new QuizRedirectLinkResponse(l.Label, l.Url, l.DisplayOrder))
                     .ToList());
         }

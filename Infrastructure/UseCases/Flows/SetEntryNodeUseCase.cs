@@ -1,5 +1,6 @@
 using Application.Repositories.Interfaces;
 using Domain.Model.Survey;
+using Domain.Services;
 using Infrastructure.Contracts.Flows.Requests;
 using Infrastructure.Contracts.Flows.Responses;
 
@@ -13,7 +14,8 @@ public sealed class SetEntryNodeUseCase(
     IFlowRepository _flows,
     INodeRepository _nodes,
     IUserProfileRepository _userProfiles,
-    IUnitOfWork _uow)
+    IUnitOfWork _uow,
+    IDateTimeProvider _time)
 {
     public async Task<FlowResult<FlowSummaryResponse>> ExecuteAsync(
         Guid flowId,
@@ -38,7 +40,7 @@ public sealed class SetEntryNodeUseCase(
 
         try
         {
-            flow.SetEntryNode(request.EntryNodeId);
+            flow.SetEntryNode(request.EntryNodeId, _time);
         }
         catch (InvalidOperationException ex)
         {

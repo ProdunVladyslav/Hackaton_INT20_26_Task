@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Domain.Services;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -18,7 +19,7 @@ namespace Domain.Model.Survey
 
         private Edge() { }
 
-        private Edge(Guid flowId, Guid source, Guid target, int priority, string conditions)
+        private Edge(Guid flowId, Guid source, Guid target, int priority, string conditions, DateTime now)
         {
             if (source == target)
                 throw new ArgumentException("Source and target cannot be same");
@@ -31,7 +32,7 @@ namespace Domain.Model.Survey
             SetPriority(priority);
             ConditionsJson = conditions;
 
-            CreatedAt = DateTime.UtcNow;
+            CreatedAt = now;
         }
 
         public static Edge Create(
@@ -39,9 +40,10 @@ namespace Domain.Model.Survey
             Guid source,
             Guid target,
             int priority,
-            string conditions)
+            string conditions,
+            IDateTimeProvider time)
         {
-            return new Edge(flowId, source, target, priority, conditions);
+            return new Edge(flowId, source, target, priority, conditions, time.UtcNow);
         }
 
         public void SetPriority(int priority)

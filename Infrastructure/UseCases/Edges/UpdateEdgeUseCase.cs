@@ -68,10 +68,10 @@ public sealed class UpdateEdgeUseCase(
 
                 // On update we only re-validate conditions + source type —
                 // no cycle check needed since topology isn't changing.
-                if (sourceNode.Type is NodeType.InfoPage or NodeType.LeadCapture
-                    && conditions is { Rules.Count: > 0 })
-                    throw new DomainException(
-                        $"{sourceNode.Type} nodes do not support conditional edges.");
+                //if (sourceNode.Type is NodeType.InfoPage or NodeType.LeadCapture
+                //    && conditions is { Rules.Count: > 0 })
+                //    throw new DomainException(
+                //        $"{sourceNode.Type} nodes do not support conditional edges.");
 
                 _structure.ValidateConditionGroup(conditions, flowNodes);
             }

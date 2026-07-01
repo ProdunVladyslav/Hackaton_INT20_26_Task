@@ -281,10 +281,9 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
 
             entity.Property(nr => nr.AutoRedirectAfterSeconds);
 
-            entity.Property(nr => nr.Tier)
-                .HasConversion<string>()
+            entity.Property(nr => nr.DisqualificationReason)
                 .IsRequired()
-                .HasMaxLength(50);
+                .HasMaxLength(200);
 
             // 1:1 with Node — inverse navigation wired explicitly
             entity.HasOne<Node>()
@@ -663,8 +662,10 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
 
             entity.Property(l => l.Tier)
                 .HasConversion<string>()
-                .IsRequired()
                 .HasMaxLength(50);
+
+            entity.Property(l => l.DisqualificationReason)
+                .HasMaxLength(500);
 
             entity.Property(l => l.TerminalNodeType)
                 .HasConversion<string>()

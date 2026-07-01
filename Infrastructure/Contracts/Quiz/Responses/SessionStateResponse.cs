@@ -65,7 +65,7 @@ public sealed record QuizLeadCaptureFieldResponse(
 public sealed record QuizRedirectResponse(
     string? RedirectUrl,
     int? AutoRedirectAfterSeconds,
-    string Tier,
+    string? DisqualificationReason,
     IReadOnlyList<QuizRedirectLinkResponse> Links
 );
 

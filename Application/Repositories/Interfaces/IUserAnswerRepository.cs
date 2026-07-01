@@ -19,5 +19,15 @@ namespace Application.Repositories.Interfaces
         Task<Dictionary<Guid, DurationStats>> GetAnswerDurationStatsByFlowsAsync(CancellationToken ct = default);
         Task<List<UserAnswer>> GetBySessionAsync(Guid sessionId, CancellationToken ct = default);
         Task<decimal?> ResolveNumericValueAsync(string storedValue, CancellationToken ct = default);
+        Task DeleteByNodeIdAsync(Guid nodeId, CancellationToken ct = default);
+
+        Task<Dictionary<Guid, List<AnswerOptionStats>>> GetAnswerDistributionByNodeIdsAsync(
+           List<Guid> nodeIds, CancellationToken ct = default);
+
+        Task<Dictionary<Guid, List<TopTextAnswerRaw>>> GetTopTextAnswersByNodeIdsAsync(
+            List<Guid> nodeIds, int topN, CancellationToken ct = default);
+
+        Task<Dictionary<Guid, int>> GetAvgAnswerSecondsByNodeIdsAsync(
+            List<Guid> nodeIds, CancellationToken ct = default);
     }
 }

@@ -20,20 +20,20 @@
         public int? AutoRedirectAfterSeconds { get; private set; }
 
         // What tier this path represents — used for analytics + lead table
-        public QualificationTier Tier { get; private set; }
+        public string DisqualificationReason { get; private set; }
 
         private readonly List<NodeRedirectLink> _links = new();
         public IReadOnlyCollection<NodeRedirectLink> Links => _links.AsReadOnly();
 
         private NodeRedirect() { }
 
-        public static NodeRedirect Create(Guid nodeId, QualificationTier tier)
+        public static NodeRedirect Create(Guid nodeId, string disqualificationReason)
         {
             return new NodeRedirect
             {
                 Id = Guid.NewGuid(),
                 NodeId = nodeId,
-                Tier = tier
+                DisqualificationReason = disqualificationReason
             };
         }
 
@@ -52,7 +52,7 @@
             _links.Add(link);
         }
 
-        public void SetTier(QualificationTier tier) => Tier = tier;
+        public void SetDisqualificationReason(string disqualificationReason) => DisqualificationReason = disqualificationReason;
 
         public void RemoveLink(NodeRedirectLink link)
         {

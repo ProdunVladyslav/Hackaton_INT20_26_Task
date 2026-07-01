@@ -1,4 +1,5 @@
 using Application.Repositories.Interfaces;
+using Domain.Services;
 using Infrastructure.Contracts.Flows.Requests;
 using Infrastructure.Contracts.Flows.Responses;
 
@@ -11,7 +12,8 @@ namespace Infrastructure.UseCases.Flows;
 public sealed class UpdateFlowUseCase(
     IFlowRepository _flows,
     IUserProfileRepository _userProfiles,
-    IUnitOfWork _uow)
+    IUnitOfWork _uow,
+    IDateTimeProvider _time)
 {
     public async Task<FlowResult<FlowSummaryResponse>> ExecuteAsync(
         Guid flowId,
@@ -30,10 +32,10 @@ public sealed class UpdateFlowUseCase(
         try
         {
             if (request.Name is not null)
-                flow.SetName(request.Name);
+                flow.SetName(request.Name, _time);
 
             if (request.Description is not null)
-                flow.SetDescription(request.Description);
+                flow.SetDescription(request.Description, _time);
         }
         catch (ArgumentException ex)
         {

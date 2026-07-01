@@ -103,9 +103,8 @@ public sealed class CreateNodeUseCase(
                 NodeType.Redirect => _factory.CreateRedirect(
                     flowId, 
                     request.Title,
-                    Enum.Parse<QualificationTier>(request.Tier
-                        ?? throw new DomainException("Redirect nodes require a Tier."),
-                        ignoreCase: true),
+                    request.DisqualificationReason
+                        ?? "Not a fit",
                     request.PositionX, 
                     request.PositionY,
                     request.RedirectUrl,

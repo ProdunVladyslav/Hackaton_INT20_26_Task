@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Domain.Services;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -25,7 +26,7 @@ namespace Domain.Model.User
         public DateTime? CompletedAt { get; private set; }
         public string? UserNodePath { get; private set; }
 
-
+        public string? TerminalNodeType { get; private set; } // "Offer" | "Redirect" | null
 
         /// <summary>
         /// Accumulated qualification score.
@@ -39,25 +40,25 @@ namespace Domain.Model.User
 
         private UserSession() { }
 
-        private UserSession(Guid flowId, Guid entryNodeId)
+        private UserSession(Guid flowId, Guid entryNodeId, DateTime now)
         {
             Id = Guid.NewGuid();
             FlowId = flowId;
             CurrentNodeId = entryNodeId;
             Status = SessionStatus.InProgress;
             Score = 0;
-            StartedAt = DateTime.UtcNow;
+            StartedAt = now;
         }
 
-        public static UserSession Create(Guid flowId, Guid entryNodeId)
-            => new UserSession(flowId, entryNodeId);
+        public static UserSession Create(Guid flowId, Guid entryNodeId, IDateTimeProvider time)
+            => new UserSession(flowId, entryNodeId, time.UtcNow);
 
         /// <summary>
         /// Applies a score delta. Pass negative value to reverse (used on go-back).
         /// </summary>
         public void AddScore(int delta) => Score += delta;
 
-        public UserAnswer RecordAnswer(Guid nodeId, string key, string value)
+        public UserAnswer RecordAnswer(Guid nodeId, string key, string value, IDateTimeProvider time)
         {
             if (Status != SessionStatus.InProgress)
                 throw new InvalidOperationException("Cannot record answer on inactive session");
@@ -66,7 +67,7 @@ namespace Domain.Model.User
                 ? Answers.Max(a => a.AnsweredAt)
                 : StartedAt;
 
-            var answer = UserAnswer.Create(Id, nodeId, key, value, lastAnswerAt);
+            var answer = UserAnswer.Create(Id, nodeId, key, value, lastAnswerAt, time);
             Answers.Add(answer);
             return answer;
         }
@@ -90,17 +91,18 @@ namespace Domain.Model.User
             // optionally: Status = SessionStatus.Interrupted; etc.
         }
 
-        public void Complete()
+        public void Complete(string terminalNodeType, IDateTimeProvider time)
         {
             Status = SessionStatus.Completed;
-            CompletedAt = DateTime.UtcNow;
+            CompletedAt = time.UtcNow;
+            TerminalNodeType = terminalNodeType;
         }
 
         public void Abandon()
         {
             Status = SessionStatus.Abandoned;
         }
-
+           
         public void SetUtm(string? utmSource, string? utmCampaign)
         {
             UtmSource = utmSource ?? string.Empty;

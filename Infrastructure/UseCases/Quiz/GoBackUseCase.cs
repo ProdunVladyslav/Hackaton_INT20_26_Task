@@ -134,7 +134,7 @@ public sealed class GoBackUseCase(
             redirect = new QuizRedirectResponse(
                 RedirectUrl: node.Redirect.RedirectUrl,
                 AutoRedirectAfterSeconds: node.Redirect.AutoRedirectAfterSeconds,
-                Tier: node.Redirect.Tier.ToString(),
+                DisqualificationReason: node.Redirect.DisqualificationReason,
                 Links: node.Redirect.Links
                     .OrderBy(l => l.DisplayOrder)
                     .Select(l => new QuizRedirectLinkResponse(l.Label, l.Url, l.DisplayOrder))

@@ -15,5 +15,14 @@ namespace Application.Repositories.Interfaces
         Task<Dictionary<Guid, FlowSessionStats>> GetSessionStatsByFlowsAsync(CancellationToken ct = default);
         Task<Dictionary<Guid, DurationStats>> GetSessionDurationStatsByFlowsAsync(CancellationToken ct = default);
         Task<List<UserSession>> GetByCurrentNodeIdAsync(Guid nodeId, CancellationToken ct = default);
+
+        Task<List<DailySessionStats>> GetDailySeriesAsync(
+            Guid flowId, DateOnly from, DateOnly to, CancellationToken ct = default);
+
+        Task<List<DisqualificationReasonRaw>> GetDisqualificationReasonsAsync(
+            Guid flowId, CancellationToken ct = default);
+
+        Task<ScoreDistributionRaw?> GetScoreDistributionAsync(
+            Guid flowId, CancellationToken ct = default);
     }
 }

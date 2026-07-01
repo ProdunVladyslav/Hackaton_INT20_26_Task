@@ -1,3 +1,5 @@
+using Domain.Services;
+
 namespace Domain.Model.Survey
 {
     public enum NodeType
@@ -13,6 +15,13 @@ namespace Domain.Model.Survey
     {
         Text,      // eq, neq, in
         Numeric,   // eq, neq, in, gt, gte, lt, lte, between
+    }
+
+    public enum AnswerTypesSwitchableInternally
+    {
+        Choice,
+        Slider,
+        Text
     }
 
     /// <summary>
@@ -67,7 +76,8 @@ namespace Domain.Model.Survey
             string title,
             string attributeKey,
             float positionX,
-            float positionY)
+            float positionY,
+            DateTime now)
         {
             Id = Guid.NewGuid();
             FlowId = flowId;
@@ -81,7 +91,7 @@ namespace Domain.Model.Survey
             PositionX = positionX;
             PositionY = positionY;
 
-            CreatedAt = DateTime.UtcNow;
+            CreatedAt = now;
         }
 
         public static Node Create(
@@ -90,9 +100,10 @@ namespace Domain.Model.Survey
             string title,
             string attributeKey,
             float positionX,
-            float positionY)
+            float positionY,
+            IDateTimeProvider time)
         {
-            return new Node(flowId, type, title, attributeKey, positionX, positionY);
+            return new Node(flowId, type, title, attributeKey, positionX, positionY, time.UtcNow);
         }
 
         public void SetTitle(string title)

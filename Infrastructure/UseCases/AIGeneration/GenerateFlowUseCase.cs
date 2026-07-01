@@ -89,7 +89,7 @@ namespace Infrastructure.UseCases.AIGeneration
                             .ToList(),
 
                         // Redirect
-                        Tier: n.Tier,
+                        DisqualificationReason: n.DisqualificationReason,
                         RedirectUrl: n.RedirectUrl,
                         AutoRedirectAfterSeconds: n.AutoRedirectAfterSeconds,
                         Links: n.Links?

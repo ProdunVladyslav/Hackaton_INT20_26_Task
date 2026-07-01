@@ -1,4 +1,4 @@
-namespace Infrastructure.Contracts.Flows.Responses;
+namespace Application.Contracts.Analytics;
 
 /// <summary>
 /// Per-flow statistics embedded inside <see cref="FlowSummaryResponse"/> for admin dashboards.

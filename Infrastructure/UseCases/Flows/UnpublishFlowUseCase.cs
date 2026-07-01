@@ -1,4 +1,5 @@
 using Application.Repositories.Interfaces;
+using Domain.Services;
 using Infrastructure.Contracts.Flows.Responses;
 
 namespace Infrastructure.UseCases.Flows;
@@ -10,7 +11,8 @@ namespace Infrastructure.UseCases.Flows;
 public sealed class UnpublishFlowUseCase(
     IFlowRepository _flows,
     IUserProfileRepository _userProfiles,
-    IUnitOfWork _uow)
+    IUnitOfWork _uow,
+    IDateTimeProvider _time)
 {
     public async Task<FlowResult<FlowSummaryResponse>> ExecuteAsync(
         Guid flowId,
@@ -28,7 +30,7 @@ public sealed class UnpublishFlowUseCase(
         if (!flow.IsPublished)
             return FlowResult<FlowSummaryResponse>.Fail("Flow is not currently published.", statusCode: 409);
 
-        flow.Unpublish();
+        flow.Unpublish(_time);
 
         _flows.Update(flow);
         await _uow.SaveChangesAsync();

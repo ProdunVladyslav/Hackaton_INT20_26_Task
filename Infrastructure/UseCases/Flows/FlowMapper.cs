@@ -1,3 +1,4 @@
+using Application.Contracts.Analytics;
 using Domain.Model.Survey;
 using Infrastructure.Contracts.Flows.Responses;
 
@@ -10,24 +11,20 @@ namespace Infrastructure.UseCases.Flows;
 public static class FlowMapper
 {
     /// <summary>Maps a Flow to its lightweight summary representation (no nodes/edges).</summary>
-    /// <param name="flow">The flow domain entity.</param>
-    /// <param name="stats">Optional admin statistics; pass null for public endpoints.</param>
     public static FlowSummaryResponse ToSummary(Flow flow, FlowAdminStats? stats = null) =>
         new(
-            Id          : flow.Id,
-            Name        : flow.Name,
-            Description : flow.Description,
-            IsPublished : flow.IsPublished,
-            EntryNodeId : flow.EntryNodeId,
-            CreatedAt   : flow.CreatedAt,
-            UpdatedAt   : flow.UpdatedAt,
-            Stats       : stats
+            Id: flow.Id,
+            Name: flow.Name,
+            Description: flow.Description,
+            IsPublished: flow.IsPublished,
+            EntryNodeId: flow.EntryNodeId,
+            CreatedAt: flow.CreatedAt,
+            UpdatedAt: flow.UpdatedAt,
+            Stats: stats
         );
 
     /// <summary>Maps a Flow (with fully loaded DAG) to the detailed response.</summary>
-    /// <param name="flow">The flow domain entity with Nodes and Edges loaded.</param>
-    /// <param name="stats">Optional flow-level admin stats; pass null for public endpoints.</param>
-    public static FlowDetailResponse ToDetail(Flow flow, FlowAdminStats? stats = null) =>
+    public static FlowDetailResponse ToDetail(Flow flow) =>
         new(
             Id: flow.Id,
             Name: flow.Name,
@@ -38,9 +35,7 @@ public static class FlowMapper
             UpdatedAt: flow.UpdatedAt,
             Nodes: flow.Nodes.Select(ToNodeDto).ToList(),
             Edges: flow.Edges.Select(ToEdgeDto).ToList(),
-            AttributeKeys: [],
-            PathDistribution: [],
-            Stats       : stats
+            AttributeKeys: []
         );
 
     private static NodeDto ToNodeDto(Node node) =>
@@ -59,28 +54,27 @@ public static class FlowMapper
             SliderMin: node.SliderMin,
             SliderMax: node.SliderMax,
             Options: node.Options.Select(ToOptionDto).ToList(),
-            NodeOffers: new List<NodeOfferDto>(), // enriched separately in use case
-            Stats: null, // enriched separately in use case
-            Redirect : null, // enriched separately in use case
-            LeadCapture : null // enriched separately in use case
+            NodeOffers: [],  // enriched separately in use case
+            Redirect: null, // enriched separately in use case
+            LeadCapture: null  // enriched separately in use case
         );
 
     private static OptionDto ToOptionDto(Option opt) =>
         new(
-            Id           : opt.Id,
-            Label        : opt.Label,
-            Value        : opt.Value,
-            ScoreDelta   : opt.ScoreDelta,
-            DisplayOrder : opt.DisplayOrder,
-            MediaUrl     : opt.MediaUrl
+            Id: opt.Id,
+            Label: opt.Label,
+            Value: opt.Value,
+            ScoreDelta: opt.ScoreDelta,
+            DisplayOrder: opt.DisplayOrder,
+            MediaUrl: opt.MediaUrl
         );
 
     private static EdgeDto ToEdgeDto(Edge edge) =>
         new(
-            Id           : edge.Id,
-            SourceNodeId : edge.SourceNodeId,
-            TargetNodeId : edge.TargetNodeId,
-            Priority     : edge.Priority,
-            Conditions   : edge.ConditionsJson
+            Id: edge.Id,
+            SourceNodeId: edge.SourceNodeId,
+            TargetNodeId: edge.TargetNodeId,
+            Priority: edge.Priority,
+            Conditions: edge.ConditionsJson
         );
 }

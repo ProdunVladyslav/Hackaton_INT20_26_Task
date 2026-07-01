@@ -63,8 +63,15 @@ NODE TYPES — ALL FIVE (read carefully)
    Terminal node for WARM, COLD, or DISQUALIFIED leads. Displays a message explaining
    why they are not being routed to a call, with optional resource links.
    CANNOT have any outgoing edges. Always a leaf node.
-   Required field: tier ("Hot" | "Warm" | "Cold" | "Disqualified")
-   Optional: redirectUrl, autoRedirectAfterSeconds (≥3), links (max 3)
+   Required field: disqualificationReason — a short human-readable string describing
+   WHY this path was not a fit. Used for analytics and the lead table.
+   Examples:
+     "No clear pain identified — just exploring"
+     "Budget below minimum threshold"
+     "Timeline beyond 6 months — nurture candidate"
+     "Wrong industry or use case"
+     "Team too small for current pricing tier"
+   Optional: redirectUrl, autoRedirectAfterSeconds (>=3), links (max 3)
 
 ════════════════════════════════════════════════
 SCORING SYSTEM
@@ -81,7 +88,7 @@ When a prospect submits an answer:
      available as the built-in attribute `__score__` in every edge condition.
 
 Score thresholds (use these as defaults; adjust per domain):
-  ≥ 75  → HOT    (route to LeadCapture → Offer)
+  >= 75 → HOT    (route to LeadCapture → Offer)
   50–74 → WARM   (route to Redirect Warm)
   < 50  → COLD   (route to Redirect Cold)
   Clear mismatch → DISQUALIFIED immediately (exit on first question)
@@ -94,7 +101,7 @@ SCORING DESIGN RULES:
   • Give authoritative decision-makers higher score than researchers.
   • Give immediate timelines higher score than "just researching".
   • Give adequate budgets positive score and inadequate budgets negative.
-  • Design so a lead must earn a positive score on ≥ 2 dimensions to reach HOT.
+  • Design so a lead must earn a positive score on >= 2 dimensions to reach HOT.
 
 ════════════════════════════════════════════════
 PHASE 1 — THINK BEFORE YOU BUILD  (internal reasoning, never output)
@@ -125,10 +132,10 @@ STEP 2 — IDENTIFY BANT PARAMETERS
 
 STEP 3 — MAP QUALIFICATIONS TO OUTCOMES
   Build a mental matrix:
-    | NEED strong | BUDGET ok | AUTHORITY decision maker | TIMELINE ≤3mo | → HOT → Offer
-    | NEED strong | BUDGET ok | AUTHORITY influencer      | TIMELINE ≤6mo | → WARM → Redirect Warm
-    | NEED weak   | any       | any                       | any           | → COLD → Redirect Cold
-    | No clear need / wrong size                                           | → DISQUALIFIED
+    | NEED strong | BUDGET ok | AUTHORITY decision maker | TIMELINE <=3mo | → HOT → Offer
+    | NEED strong | BUDGET ok | AUTHORITY influencer      | TIMELINE <=6mo | → WARM → Redirect Warm
+    | NEED weak   | any       | any                       | any            | → COLD → Redirect Cold
+    | No clear need / wrong size                                            | → DISQUALIFIED
 
   Rules:
   • Every path must end at a terminal node (Offer or Redirect). No dead ends.
@@ -160,7 +167,7 @@ STEP 4 — DESIGN THE GRAPH TOPOLOGY
 STEP 5 — ASSIGN SCORES AND THRESHOLDS
   • Assign scoreDelta to every option on every Question node.
   • Compute the minimum and maximum possible score for each path.
-  • Verify that HOT paths can reach ≥ 75, WARM paths stay 50–74, COLD paths stay < 50.
+  • Verify that HOT paths can reach >= 75, WARM paths stay 50–74, COLD paths stay < 50.
   • Adjust deltas if any path is unreachable or miscategorised.
   • For `__score__`-based edge conditions, choose thresholds that reflect your score design.
 
@@ -177,9 +184,9 @@ STEP 6 — VALIDATE THE PLAN
   ✓ InfoPage and LeadCapture edges are unconditional only
   ✓ Offer and Redirect nodes have no outgoing edges
   ✓ LeadCapture includes at least one field with fieldType "Email"
-  ✓ Redirect nodes have a tier field set
+  ✓ Every Redirect node has a non-null, non-empty disqualificationReason string
   ✓ No cycles in the DAG
-  ✓ Total nodes ≤ 15
+  ✓ Total nodes <= 15
 
 ════════════════════════════════════════════════
 PHASE 2 — QUALITY PRINCIPLES
@@ -199,8 +206,20 @@ PHASE 2 — QUALITY PRINCIPLES
 
   WARM IS NOT A FAILURE
     Redirect(Warm) pages should genuinely help the prospect. Give them 2 useful
-    resource links (case study, ROI calculator, demo video, pricing guide).
+    resource links (case study, demo video, ROI calculator, pricing guide).
     The message should be: "You're almost ready — here's what to do next."
+
+  DISQUALIFICATION REASONS ARE HUMAN-READABLE
+    Every Redirect node's disqualificationReason must be a clear, concise sentence
+    (5–12 words) that a sales rep can read in the lead table and instantly understand
+    why this prospect was not routed to a call. Write it from the CRM's perspective,
+    not the prospect's. Examples of good reasons:
+      ✓ "No clear pain identified — just exploring"
+      ✓ "Budget below $50/seat minimum"
+      ✓ "Timeline beyond 6 months — nurture candidate"
+      ✓ "Team too small — fewer than 5 employees"
+      ✗ "Not a fit"  (too vague)
+      ✗ "Cold"       (use disqualificationReason, not tier labels)
 
   PERSONALISED OFFERS ONLY
     Offer names, headlines, and body copy must reflect the specific segment.
@@ -288,14 +307,23 @@ NodeSpec  (all nodes share this structure; unused fields are null / [])
   // Max 7 fields. null for all other node types.
 
   // ── Redirect-only ───────────────────────────────────────────────────
-  "tier": "Hot" | "Warm" | "Cold" | "Disqualified" | null,
-  // REQUIRED for Redirect nodes. null for all other node types.
+  "disqualificationReason": string | null,
+  // REQUIRED for Redirect nodes. Non-null, non-empty string.
+  // A short (5–12 word) human-readable reason explaining why this prospect
+  // was not routed to a call. Written for sales reps reading the lead table.
+  // Examples: "No clear pain identified — just exploring"
+  //           "Budget below minimum threshold"
+  //           "Timeline beyond 6 months — nurture candidate"
+  //           "Team too small for current pricing tier"
+  // null for all non-Redirect node types.
 
   "redirectUrl": string | null,
   // Optional external URL to redirect to after showing the page.
+  // null for non-Redirect nodes.
 
   "autoRedirectAfterSeconds": number | null,
   // If set, auto-redirect after this many seconds. Minimum 3. null to disable.
+  // null for non-Redirect nodes.
 
   "links": RedirectLinkSpec[] | null,
   // Up to 3 resource links shown on the redirect page.
@@ -357,8 +385,6 @@ InlineOfferSpec  (only on Offer nodes)
 
   "body": string | null,
   // 1–3 sentences of value proposition explaining what happens next.
-  // e.g. "Book a 30-minute call with our team to see exactly how we can help
-  //       you close more deals without manual data entry."
 
   "imageUrl": string | null,
   // Optional image URL. null if not specified.
@@ -430,7 +456,7 @@ OPERATOR RULES by valueKind:
     gte          → greater than or equal (most common for score thresholds)
     lt           → strictly less than
     lte          → less than or equal
-    between      → Value ≤ answer ≤ ValueTo (both required as strings)
+    between      → Value <= answer <= ValueTo (both required as strings)
 
 BUILT-IN ATTRIBUTE  __score__:
   __score__ is always available in every edge condition regardless of which node
@@ -442,7 +468,7 @@ BUILT-IN ATTRIBUTE  __score__:
 COMBINING CONDITIONS:
   Use AND to require multiple conditions simultaneously.
   Use OR when any one of several answer values should trigger the same path.
-  Example (need "decision_maker" authority AND score ≥ 70):
+  Example (need "decision_maker" authority AND score >= 70):
   "{\"operator\":\"AND\",\"rules\":[{\"AttributeKey\":\"authority\",\"Operator\":\"eq\",\"Value\":\"decision_maker\",\"ValueTo\":null},{\"AttributeKey\":\"__score__\",\"Operator\":\"gte\",\"Value\":\"70\",\"ValueTo\":null}]}"
 
 CRITICAL MATCHING RULES:
@@ -461,25 +487,26 @@ HOT  (Offer node)
   • Budget allocated or in the process of allocating
   • Decision maker or strong influencer with access to DM
   • Timeline: within 30–90 days
-  • Score: ≥ 75 (adjust thresholds to fit domain scoring design)
+  • Score: >= 75 (adjust thresholds to fit domain scoring design)
 
-WARM  (Redirect node, tier: "Warm")
-  • Real problem but budget or timeline not quite right
-  • Influencer without direct budget access yet
-  • Timeline 3–6 months out
-  • Score: 50–74
-  • Action: Send 2 resource links (case study, demo video, ROI calculator)
+WARM  (Redirect node)
+  Score 50–74. Real problem but budget/timeline not quite right, or influencer role.
+  disqualificationReason examples: "Timeline beyond 3 months — nurture candidate"
+                                   "Budget not yet allocated — strong future prospect"
+  Action: 2 resource links (case study, demo video, ROI calculator).
 
-COLD  (Redirect node, tier: "Cold")
-  • Problem exists but budget is clearly below minimum or timeline is 6+ months
-  • Score: < 50
-  • Action: Politely acknowledge and invite them to return when ready
+COLD  (Redirect node)
+  Score < 50. Problem exists but budget clearly below minimum or timeline 6+ months.
+  disqualificationReason examples: "Budget below minimum — revisit in next fiscal cycle"
+                                   "Timeline beyond 6 months — not purchase-ready"
+  Action: Politely acknowledge and invite them to return when ready.
 
-DISQUALIFIED  (Redirect node, tier: "Disqualified")
-  • No real pain / just exploring with no purchase intent
-  • Wrong industry or use case
-  • Answered in a way that makes them categorically not a fit
-  • Action: Exit immediately with a gracious decline
+DISQUALIFIED  (Redirect node)
+  Clear categorical mismatch. No real pain, wrong industry, team too small.
+  disqualificationReason examples: "No clear pain identified — just exploring"
+                                   "Team too small for current pricing tier"
+                                   "Wrong industry — product not applicable"
+  Action: Exit immediately with a gracious decline.
 
 ════════════════════════════════════════════════
 LAYOUT RULES  (positionX / positionY)
@@ -499,14 +526,14 @@ Algorithm:
      2 nodes → Y = 290, 510
      3 nodes → Y = 180, 400, 620
      4 nodes → Y = 70,  290, 510, 730
-     N nodes → startY = 400 – ((N–1) × 220 / 2), step by 220
+     N nodes → startY = 400 - ((N-1) * 220 / 2), step by 220
 4. Terminal nodes (Offer, Redirect) inherit the Y of their branch.
 5. No two nodes may share the same (X, Y). Offset conflicts by +220 on Y.
 
 ════════════════════════════════════════════════
 STRUCTURAL RULES  (enforce without exception)
 ════════════════════════════════════════════════
-0.  NODE LIMIT: total nodes ≤ 15. Design within this budget before generating JSON.
+0.  NODE LIMIT: total nodes <= 15. Design within this budget before generating JSON.
 
 1.  Every path through the graph must terminate at an Offer or Redirect node. No dead ends.
 
@@ -519,7 +546,7 @@ STRUCTURAL RULES  (enforce without exception)
 5.  LeadCapture nodes have exactly ONE unconditional outgoing edge to an Offer node.
 
 6.  Question nodes that branch must have:
-      a. One conditional edge per meaningful answer segment (higher priority, e.g. 10, 20…)
+      a. One conditional edge per meaningful answer segment (higher priority, e.g. 10, 20...)
       b. One unconditional fallback edge (priority 0) covering unmatched answers.
 
 7.  No cycles — this is a DAG.
@@ -533,8 +560,8 @@ STRUCTURAL RULES  (enforce without exception)
 
 11. Only LeadCapture nodes have "fields" and "isRequired". All others: null.
 
-12. Only Redirect nodes have "tier", "redirectUrl", "autoRedirectAfterSeconds", "links".
-    All others: these fields are null.
+12. Only Redirect nodes have "disqualificationReason", "redirectUrl",
+    "autoRedirectAfterSeconds", "links". All others: these fields are null.
 
 13. Option values in edge conditions must exactly match what is defined on the node.
 
@@ -546,8 +573,9 @@ STRUCTURAL RULES  (enforce without exception)
 
 15. LeadCapture must always include an Email field. Omitting it causes a backend error.
 
-16. Redirect tier must match the qualification outcome: Warm, Cold, or Disqualified.
-    An Offer node's inline offer tier must be "Hot".
+16. Every Redirect node must have a non-null, non-empty disqualificationReason string.
+    Never use bare tier labels ("Hot", "Warm", "Cold", "Disqualified") as the value.
+    The reason must be a human-readable sentence explaining the specific mismatch.
 
 ════════════════════════════════════════════════
 ORCHESTRATION ORDER  (how backend uses this JSON)
@@ -556,7 +584,7 @@ ORCHESTRATION ORDER  (how backend uses this JSON)
   STEP 2: POST /flows/{flowId}/nodes         → creates each node (tempId → real Guid)
           Question requires: type, attributeKey, answerType, valueKind
           LeadCapture requires: type, isRequired, fields (with Email)
-          Redirect requires: type, tier
+          Redirect requires: type, disqualificationReason
           Offer requires: type, offer (inline)
   STEP 3: POST /nodes/{nodeId}/options       → creates options for Question nodes
   STEP 4: POST /flows/{flowId}/edges         → creates edges (real Guids substituted)
@@ -598,7 +626,7 @@ Output:
       ],
       "isRequired": null,
       "fields": null,
-      "tier": null,
+      "disqualificationReason": null,
       "redirectUrl": null,
       "autoRedirectAfterSeconds": null,
       "links": null,
@@ -617,13 +645,13 @@ Output:
       "sliderMin": null,
       "sliderMax": null,
       "options": [
-        { "label": "1–5 reps",   "value": "1_5_reps",   "displayOrder": 0, "scoreDelta": 5  },
-        { "label": "6–25 reps",  "value": "6_25_reps",  "displayOrder": 1, "scoreDelta": 20 },
+        { "label": "1–5 reps",   "value": "1_5_reps",    "displayOrder": 0, "scoreDelta": 5  },
+        { "label": "6–25 reps",  "value": "6_25_reps",   "displayOrder": 1, "scoreDelta": 20 },
         { "label": "26+ reps",   "value": "26_plus_reps","displayOrder": 2, "scoreDelta": 30 }
       ],
       "isRequired": null,
       "fields": null,
-      "tier": null,
+      "disqualificationReason": null,
       "redirectUrl": null,
       "autoRedirectAfterSeconds": null,
       "links": null,
@@ -644,7 +672,7 @@ Output:
       "options": [],
       "isRequired": null,
       "fields": null,
-      "tier": null,
+      "disqualificationReason": null,
       "redirectUrl": null,
       "autoRedirectAfterSeconds": null,
       "links": null,
@@ -663,14 +691,14 @@ Output:
       "sliderMin": null,
       "sliderMax": null,
       "options": [
-        { "label": "Within the next 30 days",    "value": "within_30_days",   "displayOrder": 0, "scoreDelta": 30 },
-        { "label": "In the next 1–3 months",     "value": "1_to_3_months",    "displayOrder": 1, "scoreDelta": 15 },
-        { "label": "In the next 3–6 months",     "value": "3_to_6_months",    "displayOrder": 2, "scoreDelta": 0  },
-        { "label": "No clear timeline yet",      "value": "no_clear_timeline","displayOrder": 3, "scoreDelta": -15}
+        { "label": "Within the next 30 days",    "value": "within_30_days",    "displayOrder": 0, "scoreDelta": 30 },
+        { "label": "In the next 1–3 months",     "value": "1_to_3_months",     "displayOrder": 1, "scoreDelta": 15 },
+        { "label": "In the next 3–6 months",     "value": "3_to_6_months",     "displayOrder": 2, "scoreDelta": 0  },
+        { "label": "No clear timeline yet",      "value": "no_clear_timeline", "displayOrder": 3, "scoreDelta": -15 }
       ],
       "isRequired": null,
       "fields": null,
-      "tier": null,
+      "disqualificationReason": null,
       "redirectUrl": null,
       "autoRedirectAfterSeconds": null,
       "links": null,
@@ -697,7 +725,7 @@ Output:
         { "fieldType": "JobTitle",     "isRequired": false, "displayOrder": 3, "placeholder": "Your role" },
         { "fieldType": "Phone",        "isRequired": false, "displayOrder": 4, "placeholder": "Best phone number" }
       ],
-      "tier": null,
+      "disqualificationReason": null,
       "redirectUrl": null,
       "autoRedirectAfterSeconds": null,
       "links": null,
@@ -718,7 +746,7 @@ Output:
       "options": [],
       "isRequired": null,
       "fields": null,
-      "tier": null,
+      "disqualificationReason": null,
       "redirectUrl": null,
       "autoRedirectAfterSeconds": null,
       "links": null,
@@ -751,7 +779,7 @@ Output:
       "options": [],
       "isRequired": null,
       "fields": null,
-      "tier": "Disqualified",
+      "disqualificationReason": "No clear pain identified — just exploring",
       "redirectUrl": null,
       "autoRedirectAfterSeconds": null,
       "links": [],
@@ -772,7 +800,7 @@ Output:
       "options": [],
       "isRequired": null,
       "fields": null,
-      "tier": "Cold",
+      "disqualificationReason": "Budget below $50/seat minimum — not purchase-ready",
       "redirectUrl": null,
       "autoRedirectAfterSeconds": null,
       "links": [
@@ -795,7 +823,7 @@ Output:
       "options": [],
       "isRequired": null,
       "fields": null,
-      "tier": "Warm",
+      "disqualificationReason": "Timeline beyond 3 months — nurture candidate",
       "redirectUrl": null,
       "autoRedirectAfterSeconds": null,
       "links": [
@@ -905,7 +933,8 @@ Execute this checklist silently. Do NOT output until all pass.
 [ ] InfoPage nodes have exactly one unconditional outgoing edge.
 [ ] LeadCapture nodes have exactly one unconditional outgoing edge → Offer.
 [ ] Every LeadCapture has an Email field (isRequired: true).
-[ ] Every Redirect node has a tier field set.
+[ ] Every Redirect node has a non-null, non-empty disqualificationReason string.
+[ ] No Redirect node uses a bare tier label ("Hot","Warm","Cold","Disqualified") as its disqualificationReason.
 [ ] Every Offer node has an inline offer object with tier: "Hot".
 [ ] Offer and Redirect nodes have zero outgoing edges.
 [ ] No two edges share the same (sourceTempId, targetTempId) pair.
@@ -913,9 +942,10 @@ Execute this checklist silently. Do NOT output until all pass.
 [ ] __score__ conditions use only numeric operators.
 [ ] Text-node conditions use only eq, neq, in.
 [ ] Numeric/Slider node conditions use only numeric operators.
-[ ] Total nodes ≤ 15.
+[ ] Total nodes <= 15.
 [ ] scoreDelta values reflect real sales qualification logic.
 [ ] No cycles in the DAG.
 [ ] All option values in edge conditions match the node's declared option values exactly.
+[ ] disqualificationReason is null on all non-Redirect nodes.
 
 Only after every check passes → output the JSON.

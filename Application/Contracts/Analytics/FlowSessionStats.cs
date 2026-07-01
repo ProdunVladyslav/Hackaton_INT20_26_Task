@@ -10,6 +10,8 @@ namespace Application.Contracts.Analytics
         int TotalSessions,
         int CompletedSessions,
         int AbandonedSessions,
+        int QualifiedSessions,
+        int DisqualifiedSessions,
         int InProgressSessions,
         DateTime? LastSessionAt
     );

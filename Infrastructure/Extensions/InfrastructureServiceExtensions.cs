@@ -41,6 +41,7 @@ public static class InfrastructureServiceExtensions
         // ── Admin: Flows ──────────────────────────────────────────────────────
         services.AddScoped<ListFlowsUseCase>();
         services.AddScoped<GetFlowUseCase>();
+        services.AddScoped<GetFlowStatsUseCase>();
         services.AddScoped<CreateFlowUseCase>();
         services.AddScoped<UpdateFlowUseCase>();
         services.AddScoped<SetEntryNodeUseCase>();

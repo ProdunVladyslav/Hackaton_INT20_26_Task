@@ -15,7 +15,7 @@ namespace Infrastructure.UseCases.Edges;
 /// <summary>
 /// Use case: create a new edge (connection) between two nodes in a flow.
 /// 
-/// Responsibilities:
+/// Responsibilities: 
 ///   1. Auth + ownership
 ///   2. Node existence checks (infrastructure)
 ///   3. Duplicate edge check (infrastructure)
@@ -29,7 +29,8 @@ public sealed class CreateEdgeUseCase(
     IEdgeRepository _edges,
     IUserProfileRepository _userProfiles,
     FlowStructureService _structure,
-    IUnitOfWork _uow)
+    IUnitOfWork _uow,
+    IDateTimeProvider _time)
 {
     public async Task<FlowResult<EdgeResponse>> ExecuteAsync(
         Guid flowId,
@@ -97,7 +98,8 @@ public sealed class CreateEdgeUseCase(
                 request.SourceNodeId,
                 request.TargetNodeId,
                 request.Priority,
-                request.ConditionsJson ?? "");
+                request.ConditionsJson ?? "",
+                _time);
 
             await _edges.AddAsync(edge, ct);
             await _uow.SaveChangesAsync(ct);

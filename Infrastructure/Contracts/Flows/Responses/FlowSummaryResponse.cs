@@ -1,3 +1,5 @@
+using Application.Contracts.Analytics;
+
 namespace Infrastructure.Contracts.Flows.Responses;
 
 /// <summary>

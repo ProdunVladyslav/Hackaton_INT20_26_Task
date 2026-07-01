@@ -1,9 +1,11 @@
-﻿using System;
+﻿using Domain.Services;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Timers;
 
 namespace Infrastructure.Contracts.AIGeneration.Internal
 {
@@ -41,16 +43,27 @@ namespace Infrastructure.Contracts.AIGeneration.Internal
         public JobStatus Status { get; set; } = JobStatus.Pending;
         public Guid? FlowId { get; set; }
         public string? Error { get; set; }
-        public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; init; }
+
+        public FlowGenerationJob(IDateTimeProvider time)
+        {
+            CreatedAt = time.UtcNow;
+        }
     }
 
     public sealed class FlowGenerationJobStore
     {
         private readonly ConcurrentDictionary<Guid, FlowGenerationJob> _jobs = new();
+        private readonly IDateTimeProvider _time;
+
+        public FlowGenerationJobStore(IDateTimeProvider time)
+        {
+            _time = time;
+        }
 
         public FlowGenerationJob Create()
         {
-            var job = new FlowGenerationJob();
+            var job = new FlowGenerationJob(_time);
             _jobs[job.JobId] = job;
             return job;
         }

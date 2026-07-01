@@ -3,6 +3,7 @@ using Application.Repositories.Interfaces;
 using Domain.Model.User;
 using Infrastructure.Contracts.Quiz.Requests;
 using Infrastructure.Contracts.Flows.Responses;
+using Domain.Services;
 
 namespace Infrastructure.UseCases.Quiz;
 
@@ -19,7 +20,8 @@ public sealed class ConvertUseCase(
     IUserSessionRepository _sessions,
     IOfferRepository _offers,
     ISessionOfferRepository _sessionOffers,
-    IUnitOfWork _uow)
+    IUnitOfWork _uow,
+    IDateTimeProvider _time)
 {
     public async Task<FlowResult<bool>> ExecuteAsync(
     Guid sessionId, ConvertRequest request, CancellationToken ct = default)
@@ -43,13 +45,13 @@ public sealed class ConvertUseCase(
         {
             // Offer was not tracked via TrackOfferImpressionsAsync —
             // create the record and mark converted in one step
-            sessionOffer = SessionOffer.Create(sessionId, request.OfferId, false);
-            sessionOffer.MarkConverted();
+            sessionOffer = SessionOffer.Create(sessionId, request.OfferId, false, _time);
+            sessionOffer.MarkConverted(_time);
             await _sessionOffers.AddAsync(sessionOffer, ct);
         }
         else
         {
-            sessionOffer.MarkConverted();
+            sessionOffer.MarkConverted(_time);
             _sessionOffers.Update(sessionOffer);
         }
 

@@ -16,10 +16,12 @@ namespace Domain.Services
     public sealed class NodeFactory
     {
         private readonly FlowStructureService _structure;
+        private readonly IDateTimeProvider _time;
 
-        public NodeFactory(FlowStructureService structure)
+        public NodeFactory(FlowStructureService structure, IDateTimeProvider time)
         {
             _structure = structure;
+            _time = time;
         }
 
         // ── Question ──────────────────────────────────────────────────────────────
@@ -43,9 +45,9 @@ namespace Domain.Services
             decimal? sliderMax = null)
         {
             _structure.ValidateAttributeKey(
-                existingFlowNodes, attributeKey, valueKind, Guid.Empty);
+                existingFlowNodes, attributeKey, valueKind, answerType, Guid.Empty);
 
-            var node = Node.Create(flowId, NodeType.Question, title, attributeKey, x, y);
+            var node = Node.Create(flowId, NodeType.Question, title, attributeKey, x, y, _time);
 
             if (description is not null) node.SetDescription(description);
             if (mediaUrl is not null) node.SetMedia(mediaUrl);
@@ -68,7 +70,7 @@ namespace Domain.Services
             string? description = null,
             string? mediaUrl = null)
         {
-            var node = Node.Create(flowId, NodeType.InfoPage, title, "", x, y);
+            var node = Node.Create(flowId, NodeType.InfoPage, title, "", x, y, _time);
 
             if (description is not null) node.SetDescription(description);
             if (mediaUrl is not null) node.SetMedia(mediaUrl);
@@ -102,7 +104,7 @@ namespace Domain.Services
                 throw new DomainException(
                     "LeadCapture node must include an Email field.");
 
-            var node = Node.Create(flowId, NodeType.LeadCapture, title, "", x, y);
+            var node = Node.Create(flowId, NodeType.LeadCapture, title, "", x, y, _time);
 
             if (description is not null) node.SetDescription(description);
             if (mediaUrl is not null) node.SetMedia(mediaUrl);
@@ -145,7 +147,7 @@ namespace Domain.Services
             string? description = null,
             string? mediaUrl = null)
         {
-            var node = Node.Create(flowId, NodeType.Offer, title, "", x, y);
+            var node = Node.Create(flowId, NodeType.Offer, title, "", x, y, _time);
 
             if (description is not null) node.SetDescription(description);
             if (mediaUrl is not null) node.SetMedia(mediaUrl);
@@ -165,7 +167,7 @@ namespace Domain.Services
         public Node CreateRedirect(
             Guid flowId,
             string title,
-            QualificationTier tier,
+            string disqualificationReason,
             float x,
             float y,
             string? redirectUrl = null,
@@ -174,15 +176,15 @@ namespace Domain.Services
             string? description = null,
             string? mediaUrl = null)
         {
-            var node = Node.Create(flowId, NodeType.Redirect, title, "", x, y);
+            var node = Node.Create(flowId, NodeType.Redirect, title, "", x, y, _time);
 
             if (description is not null) node.SetDescription(description);
             if (mediaUrl is not null) node.SetMedia(mediaUrl);
 
-            var redirect = NodeRedirect.Create(node.Id, tier);
+            var redirect = NodeRedirect.Create(node.Id, disqualificationReason);
 
             if (redirectUrl is not null) redirect.SetRedirectUrl(redirectUrl);
-            if (autoRedirectAfterSeconds is not null) redirect.SetAutoRedirect(autoRedirectAfterSeconds);
+            if (autoRedirectAfterSeconds is not null && autoRedirectAfterSeconds != -1) redirect.SetAutoRedirect(autoRedirectAfterSeconds);
 
             foreach (var (link, index) in (links ?? [])
                 .Select((l, i) => (l, i)))

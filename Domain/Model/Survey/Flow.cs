@@ -1,4 +1,5 @@
 ﻿using Domain.Model.AdminProfile;
+using Domain.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -28,61 +29,69 @@ namespace Domain.Model.Survey
 
         private Flow() { }
 
-        private Flow(string name, string description, Guid ownerId)
+        private Flow(string name, string description, Guid ownerId, DateTime now)
         {
             Id = Guid.NewGuid();
             OwnerId = ownerId;
-            SetName(name);
+            if (string.IsNullOrWhiteSpace(name))
+                throw new ArgumentException("Flow name cannot be empty");
+            Name = name;
             Description = description;
-            CreatedAt = DateTime.UtcNow;
-            UpdatedAt = DateTime.UtcNow;
+            CreatedAt = now;
+            UpdatedAt = now;
         }
 
-        public static Flow Create(string name, string description, Guid ownerId)
+        public static Flow Create(string name, string description, Guid ownerId, IDateTimeProvider time)
         {
             if (ownerId == Guid.Empty)
                 throw new ArgumentException("Owner is required");
 
-            return new Flow(name, description, ownerId);
+            return new Flow(name, description, ownerId, time.UtcNow);
         }
 
-        public void SetName(string name)
+        public void SetName(string name, IDateTimeProvider time)
         {
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentException("Flow name cannot be empty");
 
             Name = name;
-            Touch();
+            Touch(time.UtcNow);
         }
 
-        public void SetDescription(string description)
+        public void SetDescription(string description, IDateTimeProvider time)
         {
             Description = description;
-            Touch();
+            Touch(time.UtcNow);
         }
 
-        public void SetEntryNode(Guid nodeId)
+        public void SetEntryNode(Guid nodeId, IDateTimeProvider time)
         {
             if (_nodes.All(n => n.Id != nodeId))
                 throw new InvalidOperationException("Entry node must belong to this flow");
 
             EntryNodeId = nodeId;
-            Touch();
+            Touch(time.UtcNow);
         }
 
-        public void Publish()
+        public void UnsetEntryNodeId(IDateTimeProvider time)
+        {
+            EntryNodeId = null;
+            Touch(time.UtcNow);
+        }
+
+        public void Publish(IDateTimeProvider time)
         {
             if (EntryNodeId == null)
                 throw new InvalidOperationException("Cannot publish flow without entry node");
 
             IsPublished = true;
-            Touch();
+            Touch(time.UtcNow);
         }
 
-        public void Unpublish()
+        public void Unpublish(IDateTimeProvider time)
         {
             IsPublished = false;
-            Touch();
+            Touch(time.UtcNow);
         }
 
         public void AddNode(Node node)
@@ -101,9 +110,9 @@ namespace Domain.Model.Survey
             _edges.Add(edge);
         }
 
-        private void Touch()
+        private void Touch(DateTime now)
         {
-            UpdatedAt = DateTime.UtcNow;
+            UpdatedAt = now;
         }
     }
 }

@@ -13,11 +13,11 @@ namespace Infrastructure.Contracts.AIGeneration
         /// <summary>Your Anthropic API key (sk-ant-…). Required.</summary>
         public string ApiKey { get; set; } = string.Empty;
 
-        /// <summary>Model to use. Defaults to claude-sonnet-4-20250514.</summary>
-        public string Model { get; set; } = "claude-sonnet-4-20250514";
+        /// <summary>Model to use. Defaults to claude-sonnet-4-5-20250929.</summary>
+        public string Model { get; set; } = "claude-sonnet-4-5-20250929";
 
         /// <summary>Hard cap on tokens in the response.</summary>
-        public int MaxTokens { get; set; } = 1024;
+        public int MaxTokens { get; set; } = 16000;
 
         /// <summary>Sampling temperature 0–1. Null = API default.</summary>
         public double? Temperature { get; set; }

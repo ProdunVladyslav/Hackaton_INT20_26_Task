@@ -14,7 +14,7 @@ public sealed record UpdateNodeRequest(
     // Offer
     UpdateInlineOfferRequest? Offer = null,
     // Redirect
-    string? Tier = null,
+    string? DisqualificationReason = null,
     string? RedirectUrl = null,
     int? AutoRedirectAfterSeconds = null,
     // LeadCapture

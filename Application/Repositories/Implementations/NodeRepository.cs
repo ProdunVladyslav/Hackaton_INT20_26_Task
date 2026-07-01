@@ -2,6 +2,7 @@
 using Application.Repositories.Interfaces;
 using Domain.Model.Survey;
 using Microsoft.EntityFrameworkCore;
+using System.Xml.Linq;
 
 namespace Application.Repositories.Implementations
 {
@@ -46,6 +47,16 @@ namespace Application.Repositories.Implementations
                 .Include(n => n.Redirect)
                     .ThenInclude(r => r.Links)
                 .FirstOrDefaultAsync(n => n.Id == nodeId, ct);
+
+        public override void Update(Node node)
+        {
+            var entry = _context.Entry(node);
+            entry.State = EntityState.Modified;
+
+            // Position is owned by the dedicated move/position endpoint only.
+            entry.Property(n => n.PositionX).IsModified = false;
+            entry.Property(n => n.PositionY).IsModified = false;
+        }
 
         public async Task<List<Node>> GetByFlowAsync(Guid flowId, CancellationToken ct = default)
             => await _context.Nodes

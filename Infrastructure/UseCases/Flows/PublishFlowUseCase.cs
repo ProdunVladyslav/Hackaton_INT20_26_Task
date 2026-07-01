@@ -1,4 +1,5 @@
 using Application.Repositories.Interfaces;
+using Domain.Services;
 using Infrastructure.Contracts.Flows.Responses;
 
 namespace Infrastructure.UseCases.Flows;
@@ -11,7 +12,9 @@ namespace Infrastructure.UseCases.Flows;
 public sealed class PublishFlowUseCase(
     IFlowRepository _flows,
     IUserProfileRepository _userProfiles,
-    IUnitOfWork _uow)
+    INodeRepository _nodeRepository,
+    IUnitOfWork _uow,
+    IDateTimeProvider _time)
 {
     public async Task<FlowResult<FlowSummaryResponse>> ExecuteAsync(
         Guid flowId,
@@ -29,9 +32,14 @@ public sealed class PublishFlowUseCase(
         if (flow.IsPublished)
             return FlowResult<FlowSummaryResponse>.Fail("Flow is already published.", statusCode: 409);
 
+        var node = await _nodeRepository.FirstOrDefaultAsync(x => x.Id == flow.EntryNodeId);
+
+        if(node is null || node.FlowId != flow.Id)
+            return FlowResult<FlowSummaryResponse>.Fail("Node not found or does not belong to the flow.", statusCode: 422);
+
         try
         {
-            flow.Publish();
+            flow.Publish(_time);
         }
         catch (InvalidOperationException ex)
         {

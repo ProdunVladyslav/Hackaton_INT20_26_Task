@@ -1,6 +1,7 @@
 using Application.Repositories.Interfaces;
 using Domain.Model.Survey;
 using Domain.Model.User;
+using Domain.Services;
 using Infrastructure.Contracts.Quiz.Requests;
 using Infrastructure.Contracts.Quiz.Responses;
 using Infrastructure.Contracts.Flows.Responses;
@@ -18,7 +19,8 @@ public sealed class SubmitAnswerUseCase(
     ILeadRepository _leads,
     IFlowRepository _flows,
     ISessionOfferRepository _sessionOffers,
-    IUnitOfWork _uow)
+    IUnitOfWork _uow,
+    IDateTimeProvider _time)
 {
     public async Task<FlowResult<SessionStateResponse>> ExecuteAsync(
         Guid sessionId,
@@ -49,7 +51,8 @@ public sealed class SubmitAnswerUseCase(
                 request.NodeId,
                 node.AttributeKey ?? "answer",
                 request.Value,
-                lastAnsweredAt);
+                lastAnsweredAt,
+                _time);
             await _answers.AddAsync(answer, ct); 
 
             // Accumulate score for choice-based questions
@@ -61,15 +64,22 @@ public sealed class SubmitAnswerUseCase(
                 var delta = node.Options
                     .Where(o => selectedValues.Contains(o.Value, StringComparer.OrdinalIgnoreCase))
                     .Sum(o => o.ScoreDelta);
-
+                 
                 session.AddScore(delta);
             }
         }
 
-        var NodeTypee = node.Type;
-        var NodeTypeLeadCaptture = node.Type == NodeType.LeadCapture;
-        var NodeLeadCapt = node.LeadCapture;
-        var NodeLeadFields = request.LeadFields;
+        if (node.Type == NodeType.InfoPage)
+        {
+            var answer = UserAnswer.Create(
+                sessionId,
+                request.NodeId,
+                key: $"__infopage_{node.Id}__",
+                value: "continued",
+                lastAnsweredAt,
+                _time);
+            await _answers.AddAsync(answer, ct);
+        }
 
         // LeadCapture — store each field as a UserAnswer with its reserved key
         if (node.Type == NodeType.LeadCapture
@@ -86,7 +96,8 @@ public sealed class SubmitAnswerUseCase(
                         request.NodeId,
                         field.AttributeKey,
                         fieldValue,
-                        lastAnsweredAt);
+                        lastAnsweredAt,
+                        _time);
                     await _answers.AddAsync(answer, ct);
                 }
                 else if (field.IsRequired)
@@ -110,6 +121,11 @@ public sealed class SubmitAnswerUseCase(
         // Inject score so edges can route on __score__ >= threshold
         answerContext["__score__"] = session.Score.ToString();
 
+        //if(node.Type == NodeType.Question)
+        //{
+        //    answerContext[""]
+        //}
+
         // Inject LeadCapture fields from the current request — they are queued
         // in the EF tracker but not yet persisted, so the DB query above misses them.
         if (node.Type == NodeType.LeadCapture && request.LeadFields is not null)
@@ -123,12 +139,14 @@ public sealed class SubmitAnswerUseCase(
         var edges = await _edges.GetBySourceNodeAsync(session.CurrentNodeId!.Value, session.FlowId, ct);
 
         Edge? matchingEdge = null;
+        Edge? fallbackEdge = null;
+
         foreach (var edge in edges)
         {
             if (string.IsNullOrWhiteSpace(edge.ConditionsJson))
             {
-                matchingEdge = edge;
-                break;
+                fallbackEdge ??= edge; // keep first fallback, don't break
+                continue;
             }
 
             if (await EvaluateConditionsAsync(edge.ConditionsJson, answerContext, ct))
@@ -137,6 +155,8 @@ public sealed class SubmitAnswerUseCase(
                 break;
             }
         }
+
+        matchingEdge ??= fallbackEdge;
 
         if (matchingEdge is not null)
         {
@@ -147,7 +167,11 @@ public sealed class SubmitAnswerUseCase(
 
             if (!hasOutgoing)
             {
-                session.Complete();
+                var targetNode = await _nodes.GetByIdAsync(matchingEdge.TargetNodeId, ct);
+                if (targetNode is not null && targetNode.Type == NodeType.Offer)
+                    session.Complete("Offer", _time);
+                else if (targetNode is not null && targetNode.Type == NodeType.Redirect)
+                    session.Complete("Redirect", _time);
                 await TrackOfferImpressionsAsync(session, matchingEdge.TargetNodeId, ct);
 
                 // ── Lead creation ─────────────────────────────────────────────
@@ -156,7 +180,7 @@ public sealed class SubmitAnswerUseCase(
         }
         else
         {
-            session.Complete();
+            session.Complete("", _time);
         }
 
         _sessions.Update(session);
@@ -189,7 +213,7 @@ public sealed class SubmitAnswerUseCase(
 
             if (existing is null)
                 await _sessionOffers.AddAsync(
-                    SessionOffer.Create(session.Id, no.OfferId, no.IsPrimary), ct);
+                    SessionOffer.Create(session.Id, no.OfferId, no.IsPrimary, _time), ct);
         }
     }
 
@@ -346,7 +370,7 @@ public sealed class SubmitAnswerUseCase(
             redirect = new QuizRedirectResponse(
                 RedirectUrl: node.Redirect.RedirectUrl,
                 AutoRedirectAfterSeconds: node.Redirect.AutoRedirectAfterSeconds,
-                Tier: node.Redirect.Tier.ToString(),
+                DisqualificationReason: node.Redirect.DisqualificationReason,
                 Links: node.Redirect.Links
                     .OrderBy(l => l.DisplayOrder)
                     .Select(l => new QuizRedirectLinkResponse(l.Label, l.Url, l.DisplayOrder))
@@ -393,23 +417,62 @@ public sealed class SubmitAnswerUseCase(
         var terminalNode = await _nodes.GetByIdAsync(terminalNodeId, ct);
         if (terminalNode is null) return;
 
-        // Derive tier from terminal node
-        var tier = terminalNode.Type == NodeType.Redirect && terminalNode.Redirect is not null
-            ? terminalNode.Redirect.Tier
-            : QualificationTier.Hot;  // Offer nodes default to Hot
+        var terminalNodeOffer = await _nodeOffers.GetByNodeIdAsync(terminalNodeId, ct);
 
-        var timeToComplete = (int)(DateTime.UtcNow - session.StartedAt).TotalSeconds;
+        LeadType? leadType = null;
+        QualificationTier? qualificationTier = null;
+        string? disqualificationReason = null;
 
-        var lead = Lead.Create(
-            sessionId: session.Id,
-            flowId: session.FlowId,
-            flowOwnerId: flow.OwnerId,
-            email: email,
-            score: session.Score,
-            tier: tier,
-            terminalNodeId: terminalNodeId,
-            terminalNodeType: terminalNode.Type,
-            timeToCompleteSeconds: timeToComplete);
+        if (terminalNode.Type == NodeType.Redirect && terminalNode.Redirect is not null)
+        {
+            disqualificationReason = terminalNode.Redirect.DisqualificationReason;
+            qualificationTier = disqualificationReason is not null
+                ? QualificationTier.Cold   // or whatever tier maps to disqualified
+                : QualificationTier.Warm;
+            leadType = LeadType.Disqualified;
+        }
+        else if (terminalNode.Type == NodeType.Offer)
+        {
+            // Offer node: derive tier from the offer, default to Warm
+            qualificationTier = terminalNodeOffer?.FirstOrDefault()?.Tier ?? QualificationTier.Warm;
+            leadType = LeadType.Qualified;
+        }
+
+        if (leadType == null) return;
+
+        var timeToComplete = (int)(_time.UtcNow - session.StartedAt).TotalSeconds;
+
+        Lead lead;
+        if (leadType == LeadType.Qualified)
+        {
+            lead = Lead.CreateQualified(
+                sessionId: session.Id,
+                flowId: flow.Id,
+                flowOwnerId: flow.OwnerId,
+                email: email,
+                score: session.Score,
+                time: _time,
+                terminalNodeId: terminalNodeId,
+                leadType: LeadType.Qualified,
+                qualificationTier: qualificationTier!.Value,
+                terminalNodeType: terminalNode.Type,
+                timeToCompleteSeconds: timeToComplete);
+        }
+        else
+        {
+            lead = Lead.CreateDisqualified(
+                sessionId: session.Id,
+                flowId: flow.Id,
+                flowOwnerId: flow.OwnerId,
+                email: email,
+                score: session.Score,
+                time: _time,
+                terminalNodeId: terminalNodeId,
+                leadType: LeadType.Disqualified,
+                disqualificationReason: disqualificationReason,
+                terminalNodeType: terminalNode.Type,
+                timeToCompleteSeconds: timeToComplete);
+        }
 
         // Populate identity fields from captured answers
         lead.SetIdentity(

@@ -26,6 +26,9 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=hackaton_db;Username=postgres;Password=postgres
+      - Claude__ApiKey=${Claude__ApiKey}
+      - Claude__Model=${Claude__Model}
+      - Claude__MaxTokens=${Claude__MaxTokens}
     depends_on:
       postgres:
         condition: service_healthy

@@ -11,36 +11,17 @@ using System.Security.Claims;
 [Authorize]
 [Produces("application/json")]
 [Tags("Admin — Flows")]
-public sealed class FlowsController : ControllerBase
+public sealed class FlowsController(
+    ListFlowsUseCase _listFlows,
+    GetFlowUseCase _getFlow,
+    GetFlowStatsUseCase _getFlowStats,
+    CreateFlowUseCase _createFlow,
+    UpdateFlowUseCase _updateFlow,
+    SetEntryNodeUseCase _setEntryNode,
+    PublishFlowUseCase _publishFlow,
+    UnpublishFlowUseCase _unpublishFlow,
+    DeleteFlowUseCase _deleteFlow) : ControllerBase
 {
-    private readonly ListFlowsUseCase _listFlows;
-    private readonly GetFlowUseCase _getFlow;
-    private readonly CreateFlowUseCase _createFlow;
-    private readonly UpdateFlowUseCase _updateFlow;
-    private readonly SetEntryNodeUseCase _setEntryNode;
-    private readonly PublishFlowUseCase _publishFlow;
-    private readonly UnpublishFlowUseCase _unpublishFlow;
-    private readonly DeleteFlowUseCase _deleteFlow;
-
-    public FlowsController(
-        ListFlowsUseCase listFlows,
-        GetFlowUseCase getFlow,
-        CreateFlowUseCase createFlow,
-        UpdateFlowUseCase updateFlow,
-        SetEntryNodeUseCase setEntryNode,
-        PublishFlowUseCase publishFlow,
-        UnpublishFlowUseCase unpublishFlow,
-        DeleteFlowUseCase deleteFlow)
-    {
-        _listFlows = listFlows;
-        _getFlow = getFlow;
-        _createFlow = createFlow;
-        _updateFlow = updateFlow;
-        _setEntryNode = setEntryNode;
-        _publishFlow = publishFlow;
-        _unpublishFlow = unpublishFlow;
-        _deleteFlow = deleteFlow;
-    }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -78,13 +59,27 @@ public sealed class FlowsController : ControllerBase
 
     [HttpGet("{id:guid}")]
     [SwaggerOperation(Summary = "Get flow with full DAG", OperationId = "AdminFlows_Get")]
-    [SwaggerResponse(200, "Flow detail with full DAG.", typeof(FlowDetailResponse))]
+    [SwaggerResponse(200, "Flow DAG — nodes, edges, offers, and attribute keys.", typeof(FlowDetailResponse))]
     [SwaggerResponse(401, "Not authenticated.")]
     [SwaggerResponse(404, "Flow not found.")]
     public async Task<IActionResult> GetFlow([FromRoute] Guid id, CancellationToken ct)
     {
         if (!TryGetUserId(out var userId)) return Unauthorized();
         var result = await _getFlow.ExecuteAsync(id, userId, ct);
+        return ToActionResult(result);
+    }
+
+    // ── GET /api/admin/flows/{id}/stats ─────────────────────────────────────
+
+    [HttpGet("{id:guid}/stats")]
+    [SwaggerOperation(Summary = "Get flow analytics", OperationId = "AdminFlows_GetStats")]
+    [SwaggerResponse(200, "Flow-level and per-node analytics, plus path distribution.", typeof(FlowStatsResponse))]
+    [SwaggerResponse(401, "Not authenticated.")]
+    [SwaggerResponse(404, "Flow not found.")]
+    public async Task<IActionResult> GetFlowStats([FromRoute] Guid id, [FromQuery] DateOnly? from, [FromQuery] DateOnly? to, CancellationToken ct)
+    {
+        if (!TryGetUserId(out var userId)) return Unauthorized();
+        var result = await _getFlowStats.ExecuteAsync(id, userId, from, to, ct);
         return ToActionResult(result);
     }
 

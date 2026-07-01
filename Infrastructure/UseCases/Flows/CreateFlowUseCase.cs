@@ -1,5 +1,6 @@
 using Application.Repositories.Interfaces;
 using Domain.Model.Survey;
+using Domain.Services;
 using Infrastructure.Contracts.Flows.Requests;
 using Infrastructure.Contracts.Flows.Responses;
 
@@ -12,7 +13,8 @@ namespace Infrastructure.UseCases.Flows;
 public sealed class CreateFlowUseCase(
     IFlowRepository _flows,
     IUserProfileRepository _userProfiles,
-    IUnitOfWork _uow)
+    IUnitOfWork _uow,
+    IDateTimeProvider _time)
 {
     public async Task<FlowResult<FlowSummaryResponse>> ExecuteAsync(
         CreateFlowRequest request,
@@ -25,7 +27,7 @@ public sealed class CreateFlowUseCase(
 
         // Guard: name uniqueness is not required by spec but we validate it's not blank
         // (the DTO attribute already covers this, but we enforce in the domain too).
-        var flow = Flow.Create(request.Name, request.Description ?? string.Empty, profile.Id);
+        var flow = Flow.Create(request.Name, request.Description ?? string.Empty, profile.Id, _time);
 
         await _flows.AddAsync(flow, ct);
         await _uow.SaveChangesAsync();

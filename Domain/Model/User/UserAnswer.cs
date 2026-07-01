@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Domain.Services;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -18,7 +19,7 @@ namespace Domain.Model.User
 
         private UserAnswer() { }
 
-        private UserAnswer(Guid sessionId, Guid nodeId, string key, string value, DateTime lastAnswerAt)
+        private UserAnswer(Guid sessionId, Guid nodeId, string key, string value, DateTime lastAnswerAt, DateTime now)
         {
             Id = Guid.NewGuid();
             SessionId = sessionId;
@@ -33,13 +34,13 @@ namespace Domain.Model.User
             AttributeKey = key;
             Value = value;
 
-            AnsweredAt = DateTime.UtcNow;
+            AnsweredAt = now;
             UserAnswerDuration = AnsweredAt - lastAnswerAt;
         }
 
-        public static UserAnswer Create(Guid sessionId, Guid nodeId, string key, string value, DateTime lastAnswerAt)
+        public static UserAnswer Create(Guid sessionId, Guid nodeId, string key, string value, DateTime lastAnswerAt, IDateTimeProvider time)
         {
-            return new UserAnswer(sessionId, nodeId, key, value, lastAnswerAt);
+            return new UserAnswer(sessionId, nodeId, key, value, lastAnswerAt, time.UtcNow);
         }
     }
 }

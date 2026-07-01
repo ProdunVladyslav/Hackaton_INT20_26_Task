@@ -38,8 +38,15 @@ namespace Application.Migrations
             //   JOIN "Users" au ON au."Id" = up."ApplicationUserId"::text;
             // Then paste the UUID below.
             migrationBuilder.Sql(@"
-                UPDATE ""Flows""  SET ""OwnerId"" = 'bc23aa67-2edb-428d-9600-35380645dc09' WHERE ""OwnerId"" IS NULL;
-                UPDATE ""Offers"" SET ""OwnerId"" = 'bc23aa67-2edb-428d-9600-35380645dc09' WHERE ""OwnerId"" IS NULL;
+                DO $$
+                DECLARE default_owner uuid;
+                BEGIN
+                    SELECT ""Id"" INTO default_owner FROM ""UserProfiles"" LIMIT 1;
+                    IF default_owner IS NOT NULL THEN
+                        UPDATE ""Flows""  SET ""OwnerId"" = default_owner WHERE ""OwnerId"" IS NULL;
+                        UPDATE ""Offers"" SET ""OwnerId"" = default_owner WHERE ""OwnerId"" IS NULL;
+                    END IF;
+                END $$;
             ");
 
             // ── Step 3: tighten to NOT NULL now every row has a valid value ───────────

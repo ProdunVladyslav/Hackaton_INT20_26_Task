@@ -1,4 +1,5 @@
 ﻿using Domain.Model.Survey;
+using Domain.Services;
 
 namespace Domain.Model.User
 {
@@ -10,6 +11,13 @@ namespace Domain.Model.User
         Closed,
         Rejected
     }
+
+    public enum LeadType
+    {
+        Qualified,
+        Disqualified
+    }
+
     public sealed class Lead
     {
         public Guid Id { get; private set; }
@@ -28,7 +36,9 @@ namespace Domain.Model.User
 
         // Qualification
         public int Score { get; private set; }
-        public QualificationTier Tier { get; private set; }
+        public QualificationTier? Tier { get; private set; }
+        public string? DisqualificationReason { get; private set; }
+        public LeadType leadType { get; private set; }
 
         // Which terminal node they reached
         public Guid TerminalNodeId { get; private set; }
@@ -45,16 +55,18 @@ namespace Domain.Model.User
 
         private Lead() { }
 
-        public static Lead Create(
+        public static Lead CreateDisqualified(
             Guid sessionId,
             Guid flowId,
             Guid flowOwnerId,
             string email,
             int score,
-            QualificationTier tier,
+            string? disqualificationReason,
             Guid terminalNodeId,
+            LeadType leadType,
             NodeType terminalNodeType,
-            int timeToCompleteSeconds)
+            int timeToCompleteSeconds,
+            IDateTimeProvider time)
         {
             if (string.IsNullOrWhiteSpace(email))
                 throw new ArgumentException("Email required to create a lead.");
@@ -67,14 +79,50 @@ namespace Domain.Model.User
                 FlowOwnerId = flowOwnerId,
                 Email = email.ToLowerInvariant().Trim(),
                 Score = score,
-                Tier = tier,
+                DisqualificationReason = disqualificationReason,
                 TerminalNodeId = terminalNodeId,
                 TerminalNodeType = terminalNodeType,
+                leadType = leadType,
                 Status = LeadStatus.New,
                 TimeToCompleteSeconds = timeToCompleteSeconds,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = time.UtcNow
             };
         }
+
+        public static Lead CreateQualified(
+            Guid sessionId,
+            Guid flowId,
+            Guid flowOwnerId,
+            string email,
+            int score,
+            Guid terminalNodeId,
+            LeadType leadType,
+            QualificationTier qualificationTier,
+            NodeType terminalNodeType,
+            int timeToCompleteSeconds,
+            IDateTimeProvider time)
+        {
+            if (string.IsNullOrWhiteSpace(email))
+                throw new ArgumentException("Email required to create a lead.");
+
+            return new Lead
+            {
+                Id = Guid.NewGuid(),
+                SessionId = sessionId,
+                FlowId = flowId,
+                FlowOwnerId = flowOwnerId,
+                Email = email.ToLowerInvariant().Trim(),
+                Score = score,
+                TerminalNodeId = terminalNodeId,
+                TerminalNodeType = terminalNodeType,
+                leadType = leadType,
+                Tier = qualificationTier,
+                Status = LeadStatus.New,
+                TimeToCompleteSeconds = timeToCompleteSeconds,
+                CreatedAt = time.UtcNow
+            };
+        }
+
 
         public void SetIdentity(
             string? fullName, string? phone, string? company,

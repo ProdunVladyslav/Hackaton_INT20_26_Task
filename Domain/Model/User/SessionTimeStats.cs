@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Domain.Services;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -22,7 +23,7 @@ namespace Domain.Model.User
         // Idle time (session time minus time actually spent answering)
         public TimeSpan? IdleTime => TotalSessionDuration - TotalAnsweringTime;
 
-        public static SessionTimeStats Compute(UserSession session, IReadOnlyList<UserAnswer> answers)
+        public static SessionTimeStats Compute(UserSession session, IReadOnlyList<UserAnswer> answers, IDateTimeProvider time)
         {
             if (answers.Count == 0)
                 return new SessionTimeStats { IsCompleted = session.Status == SessionStatus.Completed };
@@ -39,7 +40,7 @@ namespace Domain.Model.User
                 IsCompleted = session.Status == SessionStatus.Completed,
                 TotalSessionDuration = session.CompletedAt.HasValue
                                             ? session.CompletedAt.Value - session.StartedAt
-                                            : DateTime.UtcNow - session.StartedAt,
+                                            : time.UtcNow - session.StartedAt,
 
                 TotalAnswers = answers.Count,
                 TotalAnsweringTime = totalAnsweringTime,

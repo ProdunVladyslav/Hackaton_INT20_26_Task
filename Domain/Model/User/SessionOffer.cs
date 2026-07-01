@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Domain.Services;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -18,25 +19,25 @@ namespace Domain.Model.User
 
         private SessionOffer() { }
 
-        private SessionOffer(Guid sessionId, Guid offerId, bool primary)
+        private SessionOffer(Guid sessionId, Guid offerId, bool primary, DateTime now)
         {
             Id = Guid.NewGuid();
             SessionId = sessionId;
             OfferId = offerId;
             IsPrimary = primary;
-            PresentedAt = DateTime.UtcNow;
+            PresentedAt = now;
         }
 
-        public static SessionOffer Create(Guid sessionId, Guid offerId, bool primary)
+        public static SessionOffer Create(Guid sessionId, Guid offerId, bool primary, IDateTimeProvider time)
         {
-            return new SessionOffer(sessionId, offerId, primary);
+            return new SessionOffer(sessionId, offerId, primary, time.UtcNow);
         }
 
-        public void MarkConverted()
+        public void MarkConverted(IDateTimeProvider time)
         {
             if (Converted) return;
             Converted = true;
-            ConvertedAt = DateTime.UtcNow;
+            ConvertedAt = time.UtcNow;
         }
     }
 }

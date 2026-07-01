@@ -3,10 +3,12 @@ using Application.Repositories.Implementations;
 using Application.Repositories.Interfaces;
 using Application.Seeders;
 using Domain.Model.Auth;
+using Domain.Services;
 using DotNetEnv;
 using Infrastructure.Extensions;
 using Infrastructure.Services;
 using Infrastructure.Services.Implementations;
+using Infrastructure.Services.Interfaces;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
@@ -28,11 +30,17 @@ builder.WebHost.ConfigureKestrel(options =>
     options.ListenAnyIP(int.Parse(port));
 });
 
+// Clock — set FAKE_DATE=2025-11-15T10:00:00Z to freeze time for manual testing
+var fakeDateRaw = builder.Configuration["FAKE_DATE"];
+if (fakeDateRaw is not null && DateTime.TryParse(fakeDateRaw, null, System.Globalization.DateTimeStyles.RoundtripKind, out var fakeDate))
+    builder.Services.AddSingleton<IDateTimeProvider>(new FakeDateTimeProvider(fakeDate));
+else
+    builder.Services.AddSingleton<IDateTimeProvider, SystemDateTimeProvider>();
+
 // Database
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(
-        builder.Configuration.GetConnectionString("DefaultConnection")
-            ?? throw new InvalidOperationException("ConnectionStrings__DefaultConnection is missing from .env"),
+        builder.Configuration.GetConnectionString("DefaultConnection") + ";Maximum Pool Size=15;",
         npgsql => npgsql.MigrationsAssembly("Application")
     ));
 
@@ -109,6 +117,7 @@ builder.Services.AddScoped<INodeRepository, NodeRepository>();
 builder.Services.AddScoped<ILeadRepository, LeadRepository>();
 builder.Services.AddScoped<IEdgeRepository, EdgeRepository>();
 builder.Services.AddScoped<IFlowRepository, FlowRepository>();
+builder.Services.AddScoped<IFlowStatsQueryService, FlowStatsQueryService>();
 builder.Services.AddScoped<INodeOfferRepository, NodeOfferRepository>();
 builder.Services.AddScoped<IOfferRepository, OfferRepository>();
 builder.Services.AddScoped<IOptionRepository, OptionRepository>();
@@ -118,6 +127,7 @@ builder.Services.AddScoped<IUserProfileRepository, UserProfileRepository>();
 builder.Services.AddScoped<INodeRedirectLinkRepository, NodeRedirectLinkRepository>();
 builder.Services.AddScoped<INodeLeadCaptureFieldRepository, NodeLeadCaptureFieldRepository>();
 builder.Services.AddScoped<IUserSessionRepository, UserSessionRepository>();
+
 
 
 builder.Services.AddSwaggerGen(options =>

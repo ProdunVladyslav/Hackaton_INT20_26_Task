@@ -1,5 +1,6 @@
 ﻿using Application;
 using Domain.Model.User;
+using Domain.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -7,21 +8,13 @@ using Microsoft.Extensions.Logging;
 
 namespace Infrastructure.Services;
 
-public sealed class SessionAbandonmentService : BackgroundService
+public sealed class SessionAbandonmentService(
+    IDateTimeProvider _time,
+    IServiceScopeFactory _scopeFactory,
+    ILogger<SessionAbandonmentService> _logger) : BackgroundService
 {
-    private readonly IServiceScopeFactory _scopeFactory;
-    private readonly ILogger<SessionAbandonmentService> _logger;
-
     private static readonly TimeSpan Interval = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan AbandonAfter = TimeSpan.FromHours(1);
-
-    public SessionAbandonmentService(
-        IServiceScopeFactory scopeFactory,
-        ILogger<SessionAbandonmentService> logger)
-    {
-        _scopeFactory = scopeFactory;
-        _logger = logger;
-    }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -45,7 +38,7 @@ public sealed class SessionAbandonmentService : BackgroundService
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        var cutoff = DateTime.UtcNow - AbandonAfter;
+        var cutoff = _time.UtcNow - AbandonAfter;
 
         var staleSessions = await db.UserSessions
             .Where(s => s.Status == SessionStatus.InProgress && s.StartedAt < cutoff)

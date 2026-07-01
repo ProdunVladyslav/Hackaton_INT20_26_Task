@@ -1,4 +1,5 @@
 using Application;
+using Application.Contracts.Analytics;
 using Application.Repositories.Interfaces;
 using Domain.Model.Survey;
 using Domain.Model.User;

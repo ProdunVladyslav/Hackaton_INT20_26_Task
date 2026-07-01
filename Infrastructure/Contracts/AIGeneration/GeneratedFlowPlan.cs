@@ -40,7 +40,7 @@ namespace Infrastructure.Contracts.AIGeneration
         // Redirect
         [property: JsonPropertyName("headline")] string? Headline,
         [property: JsonPropertyName("body")] string? Body,
-        [property: JsonPropertyName("tier")] string? Tier,
+        [property: JsonPropertyName("disqualificationReason")] string? DisqualificationReason,
         [property: JsonPropertyName("redirectUrl")] string? RedirectUrl,
         [property: JsonPropertyName("autoRedirectAfterSeconds")] int? AutoRedirectAfterSeconds,
         [property: JsonPropertyName("links")] List<GeneratedRedirectLinkSpec>? Links
