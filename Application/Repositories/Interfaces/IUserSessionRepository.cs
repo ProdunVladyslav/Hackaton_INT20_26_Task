@@ -22,6 +22,9 @@ namespace Application.Repositories.Interfaces
         Task<List<DisqualificationReasonRaw>> GetDisqualificationReasonsAsync(
             Guid flowId, CancellationToken ct = default);
 
+        Task<List<DisqualificationReasonRaw>> GetDisqualificationReasonsByOwnerAsync(
+            Guid userProfileId, CancellationToken ct = default);
+
         Task<ScoreDistributionRaw?> GetScoreDistributionAsync(
             Guid flowId, CancellationToken ct = default);
     }

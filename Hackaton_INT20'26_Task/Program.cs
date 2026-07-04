@@ -37,10 +37,35 @@ if (fakeDateRaw is not null && DateTime.TryParse(fakeDateRaw, null, System.Globa
 else
     builder.Services.AddSingleton<IDateTimeProvider, SystemDateTimeProvider>();
 
-// Database
+// Database — prefer Heroku's DATABASE_URL (postgres://user:pass@host:port/db),
+// fall back to ConnectionStrings:DefaultConnection for local dev.
+var databaseUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
+string connectionString;
+if (!string.IsNullOrWhiteSpace(databaseUrl))
+{
+    var uri = new Uri(databaseUrl);
+    var userInfo = uri.UserInfo.Split(':', 2);
+    connectionString = new Npgsql.NpgsqlConnectionStringBuilder
+    {
+        Host = uri.Host,
+        Port = uri.Port > 0 ? uri.Port : 5432,
+        Database = uri.AbsolutePath.TrimStart('/'),
+        Username = Uri.UnescapeDataString(userInfo[0]),
+        Password = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : string.Empty,
+        // Heroku Postgres requires SSL; Require encrypts without validating the
+        // cert (it isn't in the trust store), which is what Heroku expects.
+        SslMode = Npgsql.SslMode.Require,
+        MaxPoolSize = 15,
+    }.ConnectionString;
+}
+else
+{
+    connectionString = builder.Configuration.GetConnectionString("DefaultConnection") + ";Maximum Pool Size=15;";
+}
+
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(
-        builder.Configuration.GetConnectionString("DefaultConnection") + ";Maximum Pool Size=15;",
+        connectionString,
         npgsql => npgsql.MigrationsAssembly("Application")
     ));
 
@@ -127,6 +152,8 @@ builder.Services.AddScoped<IUserProfileRepository, UserProfileRepository>();
 builder.Services.AddScoped<INodeRedirectLinkRepository, NodeRedirectLinkRepository>();
 builder.Services.AddScoped<INodeLeadCaptureFieldRepository, NodeLeadCaptureFieldRepository>();
 builder.Services.AddScoped<IUserSessionRepository, UserSessionRepository>();
+builder.Services.AddScoped<ILeadChannelRepository, LeadChannelRepository>();
+builder.Services.AddScoped<IShortCodeGenerator, ShortCodeGenerator>();
 
 
 
@@ -164,6 +191,7 @@ builder.Services.AddSwaggerGen(options =>
 // ── Build ─────────────────────────────────────────────────────────────────────
 var app = builder.Build();
 
+// Swagger — enabled in every environment (the deployed API links to /swagger).
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
@@ -176,13 +204,14 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-// Auto-migrate on startup (dev only)
-if (app.Environment.IsDevelopment())
+// Apply migrations + seed on startup. Both are idempotent, so this is safe on
+// every boot and every environment — and it's required on Heroku, where the
+// database starts empty and the admin user must be seeded.
+using (var scope = app.Services.CreateScope())
 {
-    using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-    await db.Database.MigrateAsync();                  // create tables first
-    await DbSeeder.SeedAsync(scope.ServiceProvider);   // then seed data
+    await db.Database.MigrateAsync();                  // create/upgrade tables
+    await DbSeeder.SeedAsync(scope.ServiceProvider);   // seed admin + data
 }
+
 app.Run();

@@ -22,6 +22,7 @@ public sealed class StartSessionUseCase(
     IUserSessionRepository _sessions,
     INodeRepository _nodes,
     INodeOfferRepository _nodeOffers,
+    ILeadChannelRepository _leadChannels,
     IUnitOfWork _uow,
     IDateTimeProvider _time)
 {
@@ -45,6 +46,16 @@ public sealed class StartSessionUseCase(
 
         var session = UserSession.Create(request.FlowId, flow.EntryNodeId.Value, _time);
         session.SetUtm(request.UtmSource, request.UtmCampaign);
+
+        // Only trust a channel id that actually belongs to this flow — a
+        // stale/mismatched id is silently dropped rather than failing the
+        // survey over an analytics-only field, same posture as UTM.
+        if (request.LeadChannelId is not null)
+        {
+            var channel = await _leadChannels.GetByIdAsync(request.LeadChannelId.Value, ct);
+            if (channel is not null && channel.FlowId == request.FlowId && !channel.IsArchived)
+                session.SetLeadChannel(channel.Id);
+        }
 
         await _sessions.AddAsync(session, ct);
         await _uow.SaveChangesAsync(ct);

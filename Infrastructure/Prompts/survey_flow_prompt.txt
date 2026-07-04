@@ -71,7 +71,12 @@ NODE TYPES — ALL FIVE (read carefully)
      "Timeline beyond 6 months — nurture candidate"
      "Wrong industry or use case"
      "Team too small for current pricing tier"
-   Optional: redirectUrl, autoRedirectAfterSeconds (>=3), links (max 3)
+   MANDATORY DESTINATION: a Redirect node with no redirectUrl and no links is a
+   dead end — the respondent lands on a page with nothing to click. Every
+   Redirect node MUST have redirectUrl set, OR at least one entry in links
+   (1-3). Never leave both empty. The backend rejects this with a 422 error.
+   Optional (but at least one required): redirectUrl, links (max 3).
+   Optional: autoRedirectAfterSeconds (>=3).
 
 ════════════════════════════════════════════════
 SCORING SYSTEM
@@ -327,7 +332,9 @@ NodeSpec  (all nodes share this structure; unused fields are null / [])
 
   "links": RedirectLinkSpec[] | null,
   // Up to 3 resource links shown on the redirect page.
-  // Provide at least 1–2 helpful links on Warm redirect nodes.
+  // REQUIRED to be non-empty UNLESS redirectUrl is set — a Redirect node must
+  // have at least one of the two, never neither. Provide at least 1–2 helpful
+  // links on Warm redirect nodes.
   // null for non-Redirect nodes.
 
   // ── Offer-only ──────────────────────────────────────────────────────
@@ -401,7 +408,16 @@ InlineOfferSpec  (only on Offer nodes)
   // CTA destination URL. Use null if calendarUrl is set (calendar is the primary action).
 
   "tier": "Hot" | "Warm" | "Cold" | "Disqualified" | null,
-  // ALWAYS "Hot" for Offer nodes (hot leads are the only ones reaching an Offer).
+  // Set the tier to match the SCORE BAND of the branch that routes to this Offer,
+  // so the tier badge reflects real intent. Do NOT default every Offer to "Hot".
+  //   • Offer reached by the highest-score branch  (e.g. __score__ >= 75)      → "Hot"
+  //   • Offer reached by a middle-score branch      (e.g. 50 <= __score__ < 75) → "Warm"
+  //   • Offer reached by the lowest / fallback branch (lowest scores)          → "Cold"
+  // When a flow has several Offer nodes, rank them by the minimum __score__
+  // required to reach each one and assign tiers top-down: best offer = "Hot",
+  // next = "Warm", weakest = "Cold". Each Offer's tier MUST be consistent with
+  // the __score__ condition on the edge that leads to it (a Hot-only flow that
+  // routes every qualified lead to a single Offer still uses "Hot").
 
   "calendarProvider": "Calendly" | "CalCom" | "HubSpot" | "Custom" | "None" | null,
   // Set when calendarUrl is provided. Defaults to "Calendly" if URL is Calendly-shaped.
@@ -576,6 +592,10 @@ STRUCTURAL RULES  (enforce without exception)
 16. Every Redirect node must have a non-null, non-empty disqualificationReason string.
     Never use bare tier labels ("Hot", "Warm", "Cold", "Disqualified") as the value.
     The reason must be a human-readable sentence explaining the specific mismatch.
+
+17. Every Redirect node must have redirectUrl set, OR at least one entry in links.
+    Never leave both redirectUrl null AND links empty — the backend rejects this
+    with a 422 error and the whole generation pipeline fails.
 
 ════════════════════════════════════════════════
 ORCHESTRATION ORDER  (how backend uses this JSON)
@@ -782,7 +802,9 @@ Output:
       "disqualificationReason": "No clear pain identified — just exploring",
       "redirectUrl": null,
       "autoRedirectAfterSeconds": null,
-      "links": [],
+      "links": [
+        { "label": "Learn what our CRM solves", "url": "https://example.com/product-overview" }
+      ],
       "offer": null
     },
     {
@@ -935,6 +957,7 @@ Execute this checklist silently. Do NOT output until all pass.
 [ ] Every LeadCapture has an Email field (isRequired: true).
 [ ] Every Redirect node has a non-null, non-empty disqualificationReason string.
 [ ] No Redirect node uses a bare tier label ("Hot","Warm","Cold","Disqualified") as its disqualificationReason.
+[ ] Every Redirect node has redirectUrl set OR at least one entry in links (never both empty).
 [ ] Every Offer node has an inline offer object with tier: "Hot".
 [ ] Offer and Redirect nodes have zero outgoing edges.
 [ ] No two edges share the same (sourceTempId, targetTempId) pair.

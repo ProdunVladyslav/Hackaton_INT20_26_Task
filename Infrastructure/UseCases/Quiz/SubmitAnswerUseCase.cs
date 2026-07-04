@@ -456,7 +456,8 @@ public sealed class SubmitAnswerUseCase(
                 leadType: LeadType.Qualified,
                 qualificationTier: qualificationTier!.Value,
                 terminalNodeType: terminalNode.Type,
-                timeToCompleteSeconds: timeToComplete);
+                timeToCompleteSeconds: timeToComplete,
+                leadChannelId: session.LeadChannelId);
         }
         else
         {
@@ -471,7 +472,8 @@ public sealed class SubmitAnswerUseCase(
                 leadType: LeadType.Disqualified,
                 disqualificationReason: disqualificationReason,
                 terminalNodeType: terminalNode.Type,
-                timeToCompleteSeconds: timeToComplete);
+                timeToCompleteSeconds: timeToComplete,
+                leadChannelId: session.LeadChannelId);
         }
 
         // Populate identity fields from captured answers

@@ -45,6 +45,13 @@ namespace Infrastructure.UseCases.NodeRedirectLinks
             if (link.NodeRedirectId != node.Redirect.Id)
                 return FlowResult<bool>.NotFound("Link not found on this node.");
 
+            var isLastLink = node.Redirect.Links.Count == 1
+                && string.IsNullOrWhiteSpace(node.Redirect.RedirectUrl);
+            if (isLastLink)
+                return FlowResult<bool>.Fail(
+                    "Can't remove the last link — Redirect node needs a redirect URL or at least one link.",
+                    statusCode: 422);
+
             _links.Remove(link);
             await _uow.SaveChangesAsync(ct);
 

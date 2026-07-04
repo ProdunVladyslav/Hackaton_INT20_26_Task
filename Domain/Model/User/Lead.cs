@@ -44,6 +44,9 @@ namespace Domain.Model.User
         public Guid TerminalNodeId { get; private set; }
         public NodeType TerminalNodeType { get; private set; }  // Offer or Redirect
 
+        // Which shared link brought this respondent in, if any
+        public Guid? LeadChannelId { get; private set; }
+
         // Sales rep workflow
         public LeadStatus Status { get; private set; }
         public string? Notes { get; private set; }
@@ -66,7 +69,8 @@ namespace Domain.Model.User
             LeadType leadType,
             NodeType terminalNodeType,
             int timeToCompleteSeconds,
-            IDateTimeProvider time)
+            IDateTimeProvider time,
+            Guid? leadChannelId = null)
         {
             if (string.IsNullOrWhiteSpace(email))
                 throw new ArgumentException("Email required to create a lead.");
@@ -85,7 +89,8 @@ namespace Domain.Model.User
                 leadType = leadType,
                 Status = LeadStatus.New,
                 TimeToCompleteSeconds = timeToCompleteSeconds,
-                CreatedAt = time.UtcNow
+                CreatedAt = time.UtcNow,
+                LeadChannelId = leadChannelId
             };
         }
 
@@ -100,7 +105,8 @@ namespace Domain.Model.User
             QualificationTier qualificationTier,
             NodeType terminalNodeType,
             int timeToCompleteSeconds,
-            IDateTimeProvider time)
+            IDateTimeProvider time,
+            Guid? leadChannelId = null)
         {
             if (string.IsNullOrWhiteSpace(email))
                 throw new ArgumentException("Email required to create a lead.");
@@ -119,7 +125,8 @@ namespace Domain.Model.User
                 Tier = qualificationTier,
                 Status = LeadStatus.New,
                 TimeToCompleteSeconds = timeToCompleteSeconds,
-                CreatedAt = time.UtcNow
+                CreatedAt = time.UtcNow,
+                LeadChannelId = leadChannelId
             };
         }
 

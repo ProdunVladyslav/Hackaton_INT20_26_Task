@@ -54,6 +54,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
 
     // ── Leads ─────────────────────────────────────────────────────────────────
     public DbSet<Lead> Leads => Set<Lead>();
+    public DbSet<LeadChannel> LeadChannels => Set<LeadChannel>();
 
     // ── User activity ─────────────────────────────────────────────────────────
     public DbSet<UserSession>   UserSessions  => Set<UserSession>();
@@ -536,8 +537,22 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
                 .HasForeignKey(s => s.CurrentNodeId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // UserSession → LeadChannel (M:1, optional, restrict)
+            // Which shared link brought this respondent in, if any. Restrict —
+            // same "never silently drop analytics data" stance as UserSession →
+            // Flow above; a channel with attributed sessions must be archived,
+            // not deleted (enforced in DeleteLeadChannelUseCase).
+            entity.HasOne<LeadChannel>()
+                .WithMany()
+                .HasForeignKey(s => s.LeadChannelId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
+
             // Index for retrieving all sessions for a given flow (analytics queries).
             entity.HasIndex(s => s.FlowId);
+
+            // Index for channel performance rollups.
+            entity.HasIndex(s => s.LeadChannelId);
 
             // Index for finding active sessions quickly.
             entity.HasIndex(s => s.Status);
@@ -721,8 +736,21 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
                 .IsRequired(false)
                 .OnDelete(DeleteBehavior.SetNull);
 
+            // Lead → LeadChannel (M:1, optional, restrict)
+            // Denormalized copy of UserSession.LeadChannelId, captured at lead
+            // creation — lets the Leads/stats pages filter and group by channel
+            // without joining through sessions.
+            entity.HasOne<LeadChannel>()
+                .WithMany()
+                .HasForeignKey(l => l.LeadChannelId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
+
             // Queries: all leads for a flow (leads table view)
             entity.HasIndex(l => l.FlowId);
+
+            // Queries: channel performance rollups
+            entity.HasIndex(l => new { l.FlowId, l.LeadChannelId });
 
             // Queries: filter by tier and status (most common dashboard filters)
             entity.HasIndex(l => new { l.FlowId, l.Tier });
@@ -733,6 +761,46 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
 
             // One lead per session — enforced at DB level
             entity.HasIndex(l => l.SessionId)
+                .IsUnique();
+        });
+
+        // ── LeadChannel ───────────────────────────────────────────────────────
+        // Owner-created, per-flow trackable source (an ad, a referral partner).
+        // Restrict on Flow — a channel with historical attribution outlives the
+        // usual flow lifecycle operations; deletion is only ever a soft archive
+        // at the use-case level once sessions reference it.
+        builder.Entity<LeadChannel>(entity =>
+        {
+            entity.ToTable("LeadChannels");
+            entity.HasKey(c => c.Id);
+
+            entity.Property(c => c.Name)
+                .IsRequired()
+                .HasMaxLength(200);
+
+            entity.Property(c => c.ShortCode)
+                .IsRequired()
+                .HasMaxLength(16);
+
+            entity.Property(c => c.IsArchived)
+                .HasDefaultValue(false);
+
+            entity.Property(c => c.CreatedAt)
+                .IsRequired();
+
+            // LeadChannel → Flow (M:1, restrict)
+            entity.HasOne<Flow>()
+                .WithMany()
+                .HasForeignKey(c => c.FlowId)
+                .IsRequired()
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Queries: list channels for a flow's share panel.
+            entity.HasIndex(c => c.FlowId);
+
+            // The short code is the only thing a public request has to resolve
+            // by — must be unique across every flow.
+            entity.HasIndex(c => c.ShortCode)
                 .IsUnique();
         });
     }

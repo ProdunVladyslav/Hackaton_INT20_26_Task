@@ -87,8 +87,13 @@ public sealed class UpdateEdgeUseCase(
             if (request.Priority.HasValue)
                 edge.SetPriority(request.Priority.Value);
 
-            if (request.ConditionsJson is not null)
-                edge.UpdateConditions(request.ConditionsJson);
+            // ConditionsJson is always explicitly supplied by the admin frontend
+            // (never omitted) — a `null` here means "clear the conditions, make
+            // this edge unconditional", not "leave it untouched". Gating on
+            // `is not null` silently dropped that clear, so edges that should
+            // have become unconditional (e.g. after their last remaining
+            // condition rule was stripped) kept their stale conditions server-side.
+            edge.UpdateConditions(request.ConditionsJson ?? "");
 
             _edges.Update(edge);
             await _uow.SaveChangesAsync(ct);

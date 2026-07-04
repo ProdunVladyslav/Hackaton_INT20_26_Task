@@ -163,6 +163,8 @@ namespace Domain.Services
         ///   • Headline required.
         ///   • Auto-redirect minimum 3 seconds.
         ///   • Maximum 3 resource links.
+        ///   • Must end up with a redirect URL or at least one resource link —
+        ///     otherwise the respondent has nowhere to go.
         /// </summary>
         public Node CreateRedirect(
             Guid flowId,
@@ -192,6 +194,10 @@ namespace Domain.Services
                 redirect.AddLink(NodeRedirectLink.Create(
                     redirect.Id, link.Label, link.Url, index));
             }
+
+            // A Redirect with neither a URL nor any links is a dead end for the
+            // respondent — nothing for them to click, nowhere for them to go.
+            redirect.EnsureHasDestination();
 
             node.AttachRedirect(redirect);
 

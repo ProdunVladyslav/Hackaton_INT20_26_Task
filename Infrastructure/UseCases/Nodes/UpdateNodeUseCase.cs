@@ -172,6 +172,10 @@ public sealed class UpdateNodeUseCase(
 
                 if (request.DisqualificationReason is not null)
                     node.Redirect.SetDisqualificationReason(request.DisqualificationReason);
+
+                // Guards against clearing the redirect URL and leaving the node
+                // with no links either — it would become an unreachable dead end.
+                node.Redirect.EnsureHasDestination();
             }
 
             // ── 6. LeadCapture node — IsRequired only ─────────────────────────

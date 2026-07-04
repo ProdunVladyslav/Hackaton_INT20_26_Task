@@ -280,6 +280,26 @@ namespace Application.Repositories.Implementations
                 .ToList();
         }
 
+        public async Task<List<DisqualificationReasonRaw>> GetDisqualificationReasonsByOwnerAsync(
+            Guid userProfileId, CancellationToken ct = default)
+        {
+            var reasons = await _context.UserSessions
+                .Join(_context.Flows, s => s.FlowId, f => f.Id, (s, f) => new { s, f })
+                .Where(x => x.f.OwnerId == userProfileId && x.s.Status == SessionStatus.Completed)
+                .Join(_context.NodeRedirects,
+                    x => x.s.CurrentNodeId,
+                    r => r.NodeId,
+                    (x, r) => r.DisqualificationReason)
+                .Where(reason => reason != null)
+                .ToListAsync(ct);  // ← pull to client here, then group in memory
+
+            return reasons
+                .GroupBy(reason => reason!)
+                .Select(g => new DisqualificationReasonRaw(g.Key, g.Count()))
+                .OrderByDescending(x => x.Count)
+                .ToList();
+        }
+
         public async Task<ScoreDistributionRaw?> GetScoreDistributionAsync(
             Guid flowId, CancellationToken ct = default)
         {

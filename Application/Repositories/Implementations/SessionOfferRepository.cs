@@ -88,5 +88,34 @@ namespace Application.Repositories.Implementations
                 })
                 .ToListAsync(ct))
                 .ToDictionary(x => x.FlowId, x => new FlowOfferStats(x.TotalImpressions, x.TotalConversions));
+
+        public async Task<ConversionTimingRaw?> GetConversionTimingByFlowAsync(Guid flowId, CancellationToken ct = default)
+        {
+            var convertedAtByPresentedAt = await _context.SessionOffers
+                .Join(_context.UserSessions, so => so.SessionId, s => s.Id, (so, s) => new { so, s.FlowId })
+                .Where(x => x.FlowId == flowId && x.so.Converted && x.so.ConvertedAt != null)
+                .Select(x => new { x.so.PresentedAt, ConvertedAt = x.so.ConvertedAt!.Value })
+                .ToListAsync(ct);
+
+            if (convertedAtByPresentedAt.Count == 0) return null;
+
+            var seconds = convertedAtByPresentedAt
+                .Select(x => (x.ConvertedAt - x.PresentedAt).TotalSeconds)
+                .OrderBy(s => s)
+                .ToList();
+
+            var median = seconds.Count % 2 == 0
+                ? (seconds[seconds.Count / 2 - 1] + seconds[seconds.Count / 2]) / 2.0
+                : seconds[seconds.Count / 2];
+
+            const double oneDaySeconds = 24 * 60 * 60;
+            var within24h = seconds.Count(s => s <= oneDaySeconds);
+
+            return new ConversionTimingRaw(
+                MedianSeconds: median,
+                AvgSeconds: seconds.Average(),
+                PctWithin24Hours: Math.Round((double)within24h / seconds.Count, 4),
+                SampleSize: seconds.Count);
+        }
     }
 }

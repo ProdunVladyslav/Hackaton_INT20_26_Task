@@ -17,6 +17,8 @@ namespace Infrastructure.Services.Implementations
      IUserSessionRepository _sessions,
      ISessionOfferRepository _sessionOffers,
      IUserAnswerRepository _userAnswers,
+     ILeadRepository _leads,
+     ILeadChannelRepository _leadChannels,
      IDateTimeProvider _time) : IFlowStatsQueryService
     {
         public async Task<FlowStatsResponse> BuildAsync(
@@ -47,6 +49,11 @@ namespace Infrastructure.Services.Implementations
             var topTextMap = await _userAnswers.GetTopTextAnswersByNodeIdsAsync(questionNodeIds, topN: 10, ct);
             var avgAnswerSecsMap = await _userAnswers.GetAvgAnswerSecondsByNodeIdsAsync(questionNodeIds, ct);
             var timeStats = await _userAnswers.GetFlowTimeStatsAsync(flowId, ct);
+
+            var tierDistribution = await _leads.GetTierDistributionAsync(flowId, ct);
+            var conversionTiming = await _sessionOffers.GetConversionTimingByFlowAsync(flowId, ct);
+            var channels = await _leadChannels.GetByFlowIdAsync(flowId, ct);
+            var channelStatsMap = await _leadChannels.GetStatsByFlowAsync(flowId, ct);
 
             // ── Derive totals used across multiple sections ───────────────────
             var total = sessionStats?.TotalSessions ?? 0;
@@ -93,7 +100,19 @@ namespace Infrastructure.Services.Implementations
                     disqualReasons, disqualified),
 
                 PathDistribution: BuildPathDistribution(
-                    pathDistribution, flow.Nodes)
+                    pathDistribution, flow.Nodes),
+
+                TierDistribution: BuildTierDistribution(tierDistribution),
+
+                ChannelStats: BuildChannelStats(channels, channelStatsMap),
+
+                ConversionTiming: conversionTiming is null
+                    ? null
+                    : new ConversionTimingDto(
+                        MedianSeconds: conversionTiming.MedianSeconds,
+                        AvgSeconds: conversionTiming.AvgSeconds,
+                        PctWithin24Hours: conversionTiming.PctWithin24Hours,
+                        SampleSize: conversionTiming.SampleSize)
             );
         }
 
@@ -239,6 +258,38 @@ namespace Infrastructure.Services.Implementations
                 .Select(r => new DisqualificationReasonDto(
                     r.Reason, r.Count, Rate(r.Count, totalDisqualified)))
                 .ToList().AsReadOnly();
+
+        private static IReadOnlyList<TierDistributionEntryDto> BuildTierDistribution(
+            List<TierDistributionRaw> raw)
+        {
+            var total = raw.Sum(r => r.Count);
+            return raw
+                .OrderByDescending(r => r.Count)
+                .Select(r => new TierDistributionEntryDto(r.Tier, r.Count, Rate(r.Count, total)))
+                .ToList().AsReadOnly();
+        }
+
+        private static IReadOnlyList<ChannelStatsEntryDto> BuildChannelStats(
+            List<LeadChannel> channels,
+            Dictionary<Guid, LeadChannelStats> statsMap)
+        {
+            return channels.Select(c =>
+            {
+                statsMap.TryGetValue(c.Id, out var s);
+                var sessions = s?.SessionCount ?? 0;
+                var qualified = s?.QualifiedCount ?? 0;
+
+                return new ChannelStatsEntryDto(
+                    LeadChannelId: c.Id,
+                    Name: c.Name,
+                    ShortCode: c.ShortCode,
+                    IsArchived: c.IsArchived,
+                    Sessions: sessions,
+                    Qualified: qualified,
+                    Disqualified: s?.DisqualifiedCount ?? 0,
+                    QualificationRate: Rate(qualified, sessions));
+            }).ToList().AsReadOnly();
+        }
 
         private static IReadOnlyList<PathDistributionEntryDto> BuildPathDistribution(
             List<PathDistributionRaw> paths, IReadOnlyCollection<Node> nodes)

@@ -7,6 +7,7 @@ using Infrastructure.UseCases.Content;
 using Infrastructure.UseCases.Edges;
 using Infrastructure.UseCases.Flows;
 using Infrastructure.UseCases.Leads;
+using Infrastructure.UseCases.LeadChannels;
 using Infrastructure.UseCases.NodeLeadCaptureFields;
 using Infrastructure.UseCases.NodeOffers;
 using Infrastructure.UseCases.NodeRedirectLinks;
@@ -76,10 +77,17 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<UpdateOfferUseCase>();
         services.AddScoped<DeleteOfferUseCase>();
 
-        // Leads 
+        // Leads
         services.AddScoped<GetLeadUseCase>();
         services.AddScoped<UpdateLeadUseCase>();
         services.AddScoped<ListLeadsUseCase>();
+
+        // Lead channels (trackable share links)
+        services.AddScoped<CreateLeadChannelUseCase>();
+        services.AddScoped<ListLeadChannelsUseCase>();
+        services.AddScoped<UpdateLeadChannelUseCase>();
+        services.AddScoped<DeleteLeadChannelUseCase>();
+        services.AddScoped<ResolveLeadChannelUseCase>();
 
         // NodeRedirectLinks
         services.AddScoped<CreateNodeRedirectLinkUseCase>();
@@ -114,6 +122,8 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<SessionStatsUseCase>();
         services.AddScoped<OfferStatsUseCase>();
         services.AddScoped<DropOffUseCase>();
+        services.AddScoped<LeadQualityUseCase>();
+        services.AddScoped<ChannelStatsUseCase>();
 
         return services;
     }

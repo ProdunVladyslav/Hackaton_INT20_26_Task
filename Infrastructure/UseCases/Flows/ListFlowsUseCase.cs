@@ -70,6 +70,11 @@ public sealed class ListFlowsUseCase(
                     ? Math.Round((double)s.AbandonedSessions / s.TotalSessions * 100, 2) : 0d,
                 LastSessionAt: s?.LastSessionAt,
 
+                QualifiedSessions: s?.QualifiedSessions ?? 0,
+                DisqualifiedSessions: s?.DisqualifiedSessions ?? 0,
+                QualificationRate: s is { TotalSessions: > 0 }
+                    ? Math.Round((double)s.QualifiedSessions / s.TotalSessions * 100, 2) : 0d,
+
                 TotalOfferImpressions: o?.TotalImpressions ?? 0,
                 TotalOfferConversions: o?.TotalConversions ?? 0,
                 OfferConversionRate: o is { TotalImpressions: > 0 }

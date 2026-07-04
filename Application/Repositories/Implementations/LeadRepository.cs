@@ -1,4 +1,5 @@
-﻿using Application.Contracts.Leads;
+﻿using Application.Contracts.Analytics;
+using Application.Contracts.Leads;
 using Application.Repositories.Interfaces;
 using Domain.Model.Survey;
 using Domain.Model.User;
@@ -24,9 +25,17 @@ namespace Application.Repositories.Implementations
             var query = _context.Leads.Where(l => l.FlowId == flowId);
 
             // ── Filters ───────────────────────────────────────────────────────────
-            if (request.Tier is not null
+            // "Disqualified" is a filterable tier in the UI, but a disqualified
+            // lead's Tier column is still Cold/Warm internally (see
+            // SubmitAnswerUseCase.TryCreateLeadAsync) — the QualificationTier
+            // enum's Disqualified value is never actually assigned. Filtering on
+            // Tier == Disqualified silently matched zero rows; use LeadType
+            // instead, same fix as GetTierDistributionAsync below.
+            if (string.Equals(request.Tier, "Disqualified", StringComparison.OrdinalIgnoreCase))
+                query = query.Where(l => l.leadType == LeadType.Disqualified);
+            else if (request.Tier is not null
                 && Enum.TryParse<QualificationTier>(request.Tier, ignoreCase: true, out var tier))
-                query = query.Where(l => l.Tier == tier);
+                query = query.Where(l => l.Tier == tier && l.leadType != LeadType.Disqualified);
 
             if (request.Status is not null
                 && Enum.TryParse<LeadStatus>(request.Status, ignoreCase: true, out var status))
@@ -88,6 +97,45 @@ namespace Application.Repositories.Implementations
                 .ToListAsync(ct);
 
             return (items, total);
+        }
+
+        public async Task<List<TierDistributionRaw>> GetTierDistributionAsync(
+            Guid flowId, CancellationToken ct = default)
+        {
+            // Pulled to memory — a disqualified lead's Tier is still Cold/Warm
+            // (see SubmitAnswerUseCase.TryCreateLeadAsync), so "Disqualified" as
+            // its own bucket has to come from LeadType, not Tier, and that
+            // priority check isn't something EF can translate to SQL cleanly.
+            var raw = await _context.Leads
+                .Where(l => l.FlowId == flowId)
+                .Select(l => new { l.Tier, l.leadType })
+                .ToListAsync(ct);
+
+            return raw
+                .Select(l => l.leadType == LeadType.Disqualified
+                    ? "Disqualified"
+                    : l.Tier?.ToString() ?? "Warm")
+                .GroupBy(bucket => bucket)
+                .Select(g => new TierDistributionRaw(g.Key, g.Count()))
+                .ToList();
+        }
+
+        public async Task<List<TierDistributionRaw>> GetTierDistributionByOwnerAsync(
+            Guid userProfileId, CancellationToken ct = default)
+        {
+            var raw = await _context.Leads
+                .Join(_context.Flows, l => l.FlowId, f => f.Id, (l, f) => new { l, f })
+                .Where(x => x.f.OwnerId == userProfileId)
+                .Select(x => new { x.l.Tier, x.l.leadType })
+                .ToListAsync(ct);
+
+            return raw
+                .Select(l => l.leadType == LeadType.Disqualified
+                    ? "Disqualified"
+                    : l.Tier?.ToString() ?? "Warm")
+                .GroupBy(bucket => bucket)
+                .Select(g => new TierDistributionRaw(g.Key, g.Count()))
+                .ToList();
         }
     }
 }

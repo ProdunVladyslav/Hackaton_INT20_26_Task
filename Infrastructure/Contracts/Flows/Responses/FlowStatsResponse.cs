@@ -22,7 +22,10 @@ namespace Infrastructure.Contracts.Flows.Responses
         ScoreDistributionDto? ScoreDistribution,        // null when flow has no scoring
         IReadOnlyList<NodeStatsEntryDto> NodeStats,
         IReadOnlyList<DisqualificationReasonDto> DisqualificationBreakdown,
-        IReadOnlyList<PathDistributionEntryDto> PathDistribution
+        IReadOnlyList<PathDistributionEntryDto> PathDistribution,
+        IReadOnlyList<TierDistributionEntryDto> TierDistribution,
+        IReadOnlyList<ChannelStatsEntryDto> ChannelStats,
+        ConversionTimingDto? ConversionTiming            // null until at least one offer has converted
     );
 
     // ── Summary ───────────────────────────────────────────────────────────────────
@@ -208,6 +211,50 @@ namespace Infrastructure.Contracts.Flows.Responses
         string? ValueKind,
         string Title,
         string? AnswerType
+    );
+
+    // ── Lead quality ──────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Flow-wide tier breakdown across every captured lead. "Disqualified" is its
+    /// own bucket (from Lead.LeadType) — a disqualified lead's Tier is still
+    /// Cold/Warm internally, so it's deliberately not folded into those buckets here.
+    /// </summary>
+    public sealed record TierDistributionEntryDto(
+        string Tier,    // "Hot" | "Warm" | "Cold" | "Disqualified"
+        int Count,
+        double Share    // Count / total leads
+    );
+
+    // ── Channel performance ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Per-channel session/qualification breakdown for every LeadChannel the
+    /// owner has created on this flow (see LeadChannelsController), including
+    /// archived ones so historical performance isn't lost from the view.
+    /// </summary>
+    public sealed record ChannelStatsEntryDto(
+        Guid LeadChannelId,
+        string Name,
+        string ShortCode,
+        bool IsArchived,
+        int Sessions,
+        int Qualified,
+        int Disqualified,
+        double QualificationRate   // Qualified / Sessions
+    );
+
+    // ── Conversion velocity ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// How long it takes a presented offer to convert (CTA click / booked call).
+    /// Null on FlowStatsResponse until at least one SessionOffer has converted.
+    /// </summary>
+    public sealed record ConversionTimingDto(
+        double MedianSeconds,
+        double AvgSeconds,
+        double PctWithin24Hours,   // 0.0 - 1.0
+        int SampleSize
     );
 
     // ── Leads (unchanged, for reference) ─────────────────────────────────────────

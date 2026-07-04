@@ -22,6 +22,7 @@ namespace Domain.Model.User
         public SessionStatus Status { get; private set; }
         public string UtmSource { get; private set; }
         public string UtmCampaign { get; private set; }
+        public Guid? LeadChannelId { get; private set; }
         public DateTime StartedAt { get; private set; }
         public DateTime? CompletedAt { get; private set; }
         public string? UserNodePath { get; private set; }
@@ -107,6 +108,11 @@ namespace Domain.Model.User
         {
             UtmSource = utmSource ?? string.Empty;
             UtmCampaign = utmCampaign ?? string.Empty;
+        }
+
+        public void SetLeadChannel(Guid? leadChannelId)
+        {
+            LeadChannelId = leadChannelId;
         }
     }
 }

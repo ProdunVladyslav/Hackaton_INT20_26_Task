@@ -32,6 +32,14 @@ public sealed record FlowAdminStats(
     /// <summary>When the most recent session was started; null if no sessions yet.</summary>
     DateTime? LastSessionAt,
 
+    // ── Lead qualification ────────────────────────────────────────────────────
+    /// <summary>Sessions that reached an Offer terminal node.</summary>
+    int QualifiedSessions,
+    /// <summary>Sessions that reached a Redirect (disqualifying) terminal node.</summary>
+    int DisqualifiedSessions,
+    /// <summary>Percentage of sessions that qualified (0–100, 2 dp).</summary>
+    double QualificationRate,
+
     // ── Offer performance ─────────────────────────────────────────────────────
     /// <summary>Total number of times any offer was presented across all sessions.</summary>
     int TotalOfferImpressions,

@@ -11,5 +11,6 @@ namespace Application.Repositories.Interfaces
         Task<FlowOfferStats?> GetOfferStatsByFlowAsync(Guid flowId, CancellationToken ct = default);
         Task<Dictionary<Guid, NodeImpressionStats>> GetNodeImpressionsByFlowAsync(Guid flowId, List<Guid> nodeIds, CancellationToken ct = default);
         Task<Dictionary<Guid, FlowOfferStats>> GetOfferStatsByFlowsAsync(CancellationToken ct = default);
+        Task<ConversionTimingRaw?> GetConversionTimingByFlowAsync(Guid flowId, CancellationToken ct = default);
     }
 }

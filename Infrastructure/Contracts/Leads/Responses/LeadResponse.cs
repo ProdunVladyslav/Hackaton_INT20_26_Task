@@ -34,6 +34,7 @@ namespace Infrastructure.Contracts.Leads.Responses
         string? Notes,
         Guid? AssignedToId,
         int TimeToCompleteSeconds,
-        DateTime CreatedAt
+        DateTime CreatedAt,
+        Guid? LeadChannelId
     );
 }

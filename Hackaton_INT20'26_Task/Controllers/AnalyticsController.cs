@@ -23,15 +23,21 @@ public sealed class AnalyticsController : ControllerBase
     private readonly SessionStatsUseCase _sessionStats;
     private readonly OfferStatsUseCase _offerStats;
     private readonly DropOffUseCase _dropOff;
+    private readonly LeadQualityUseCase _leadQuality;
+    private readonly ChannelStatsUseCase _channelStats;
 
     public AnalyticsController(
         SessionStatsUseCase sessionStats,
         OfferStatsUseCase offerStats,
-        DropOffUseCase dropOff)
+        DropOffUseCase dropOff,
+        LeadQualityUseCase leadQuality,
+        ChannelStatsUseCase channelStats)
     {
         _sessionStats = sessionStats;
         _offerStats = offerStats;
         _dropOff = dropOff;
+        _leadQuality = leadQuality;
+        _channelStats = channelStats;
     }
 
     // ── GET /api/admin/analytics/sessions ──────────────────────────────────────
@@ -82,6 +88,40 @@ public sealed class AnalyticsController : ControllerBase
         if (userId is null) return Unauthorized();
 
         var result = await _dropOff.ExecuteAsync(Guid.Parse(userId), ct);
+        return ToActionResult(result);
+    }
+
+    // ── GET /api/admin/analytics/lead-quality ──────────────────────────────────
+
+    [HttpGet("lead-quality")]
+    [SwaggerOperation(
+        Summary = "Get lead quality breakdown",
+        Description = "Returns tier distribution and top disqualification reasons across every flow the user owns.",
+        OperationId = "Analytics_GetLeadQuality")]
+    [SwaggerResponse(200, "Lead quality breakdown.", typeof(LeadQualityResponse))]
+    public async Task<IActionResult> GetLeadQuality(CancellationToken ct)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId is null) return Unauthorized();
+
+        var result = await _leadQuality.ExecuteAsync(Guid.Parse(userId), ct);
+        return ToActionResult(result);
+    }
+
+    // ── GET /api/admin/analytics/channels ───────────────────────────────────────
+
+    [HttpGet("channels")]
+    [SwaggerOperation(
+        Summary = "Get channel performance",
+        Description = "Returns per-channel session/qualification metrics across every flow the user owns.",
+        OperationId = "Analytics_GetChannelStats")]
+    [SwaggerResponse(200, "Channel performance.", typeof(ChannelStatsResponse))]
+    public async Task<IActionResult> GetChannelStats(CancellationToken ct)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId is null) return Unauthorized();
+
+        var result = await _channelStats.ExecuteAsync(Guid.Parse(userId), ct);
         return ToActionResult(result);
     }
 

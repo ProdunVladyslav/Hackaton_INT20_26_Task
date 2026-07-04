@@ -44,5 +44,6 @@ public sealed class GetLeadUseCase(
         Notes: l.Notes,
         AssignedToId: l.AssignedToId,
         TimeToCompleteSeconds: l.TimeToCompleteSeconds,
-        CreatedAt: l.CreatedAt);
+        CreatedAt: l.CreatedAt,
+        LeadChannelId: l.LeadChannelId);
 }

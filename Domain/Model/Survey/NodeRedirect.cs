@@ -59,5 +59,18 @@
             if (!_links.Remove(link))
                 throw new InvalidOperationException("Link not found on this redirect.");
         }
+
+        /// <summary>
+        /// A Redirect node is a dead end for the respondent unless it gives them
+        /// somewhere to go — either an external redirect URL or at least one
+        /// resource link. Call after any change that could leave both empty
+        /// (creation, clearing the URL, removing a link).
+        /// </summary>
+        public void EnsureHasDestination()
+        {
+            if (string.IsNullOrWhiteSpace(RedirectUrl) && _links.Count == 0)
+                throw new DomainException(
+                    "Redirect node must have a redirect URL or at least one resource link.");
+        }
     }
 }
